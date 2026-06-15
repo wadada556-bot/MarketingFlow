@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CampaignHistory extends Model
 {
@@ -12,4 +13,9 @@ class CampaignHistory extends Model
         'description',
         'step_number',
     ];
+
+    public function marketingCampaign(): BelongsTo
+    {
+        return $this->belongsTo(MarketingCampaign::class);
+    }
 }

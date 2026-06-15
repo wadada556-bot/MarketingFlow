@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('marketing_campaigns', function (Blueprint $table) {
             $table->id();
             $table->foreignId('product_id')->constrained()->cascadeOnDelete();
-            $table->unsignedTinyInteger('type');
+            $table->enum('type', ['ads marketing', 'bs strategy']);
             $table->date('start_date')->index();
-            $table->unsignedTinyInteger('status')->default(1);
+            $table->enum('status', ['stopped', 'active', 'completed']);
             $table->timestamps();
         });
     }
