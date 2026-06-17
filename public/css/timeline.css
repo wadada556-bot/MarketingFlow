@@ -1,0 +1,30 @@
+.timeline-modern {
+    border-left: 2px solid #dee2e6;
+    position: relative;
+    list-style: none;
+    padding-left: 1.5rem;
+    margin-left: 0.5rem;
+}
+.timeline-modern .timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+}
+.timeline-modern .timeline-item::before {
+    content: "";
+    position: absolute;
+    left: -1.89rem;
+    top: 0.25rem;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 50%;
+    background-color: #0d6efd;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #0d6efd;
+}
+.timeline-modern .timeline-item:last-child::before {
+    background-color: #6c757d;
+    box-shadow: 0 0 0 2px #6c757d;
+}
+.timeline-modern .timeline-item:last-child {
+    margin-bottom: 0;
+}

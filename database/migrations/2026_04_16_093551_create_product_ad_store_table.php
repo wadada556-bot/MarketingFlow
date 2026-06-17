@@ -11,12 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('campaign_histories', function (Blueprint $table) {
+        Schema::create('product_ad_store', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('marketing_campaign_id')->constrained()->cascadeOnDelete();
-            $table->date('action_date')->index();
-            $table->text('description');
-            $table->unsignedTinyInteger('step_number')->nullable();
+            $table->foreignId('product_ad_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('store_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
         });
     }
@@ -26,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('campaign_histories');
+        Schema::dropIfExists('product_ad_store');
     }
 };

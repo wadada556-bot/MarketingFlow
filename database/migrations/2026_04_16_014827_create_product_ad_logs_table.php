@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('marketing_campaigns', function (Blueprint $table) {
+        Schema::create('product_ad_logs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('product_id')->constrained()->cascadeOnDelete();
-            $table->enum('type', ['ads marketing', 'bs strategy']);
-            $table->date('start_date')->index();
-            $table->enum('status', ['stopped', 'active', 'completed']);
+            $table->foreignId('product_ad_id')->constrained()->cascadeOnDelete();
+            $table->timestamp('action_date')->index();
+            $table->text('description')->index();
             $table->timestamps();
         });
     }
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('marketing_campaigns');
+        Schema::dropIfExists('product_ad_logs');
     }
 };

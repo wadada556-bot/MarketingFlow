@@ -3,10 +3,35 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Store extends Model
 {
     protected $fillable = [
         'name'
     ];
+    protected $hidden = ['pivot'];
+
+    public function getNameAttribute($value): string
+    {
+        return strtoupper($value);
+    }
+
+    // public function productAdStores(): HasMany
+    // {
+    //     return $this->hasMany(ProductAdStore::class);
+    // }
+
+    public function dailyStoreStats(): HasMany
+    {
+        return $this->hasMany(DailyStoreStat::class);
+    }
+
+    public function productAds(): BelongsToMany
+    {
+        return $this->belongsToMany(ProductAd::class, 'product_ad_store')
+            ->using(ProductAdStore::class)
+            ->withTimestamps();
+    }
 }

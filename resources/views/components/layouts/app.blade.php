@@ -1,31 +1,204 @@
 <!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $title ?? 'Marketing Tracker' }}</title>
-    <style>
-        :root { --primary: #2563eb; --border: #e5e7eb; --bg: #f9fafb; --text: #1f2937; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg); color: var(--text); padding: 2rem; margin: 0; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .header-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); padding-bottom: 1rem; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.875rem; }
-        th, td { border-bottom: 1px solid var(--border); padding: 12px; text-align: left; }
-        th { background-color: var(--bg); font-weight: 600; color: #4b5563; }
-        tr:hover { background-color: #f3f4f6; }
-        
-        .filter-bar { display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: center; }
-        select, button, .btn-reset { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.875rem; }
-        button { background-color: var(--primary); color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #1d4ed8; }
-        .btn-reset { text-decoration: none; color: #4b5563; background: white; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="header-title">{{ $title ?? 'Dashboard' }}</h1>
-        {{ $slot }}
-    </div>
-</body>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+        <link href="{{ asset('css/md3-product-ads.css') }}" rel="stylesheet">
+
+        @stack('styles')
+
+        <title>@yield('title') - Marketing Flow</title>
+
+        <style>
+            /* ── Global Layout ─────────────────────────────── */
+            body {
+                background-color: var(--md-surface-container-low);
+                overflow-x: hidden;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                color: var(--md-on-surface);
+            }
+            #wrapper {
+                display: flex;
+                width: 100vw;
+                min-height: 100vh;
+                align-items: stretch;
+            }
+
+            /* ── Navigation Drawer (MD3) ───────────────────── */
+            #sidebar-wrapper {
+                min-width: 256px;
+                max-width: 256px;
+                background-color: var(--md-surface-container-lowest);
+                border-right: 1px solid var(--md-outline-variant);
+                transition: margin 0.25s cubic-bezier(.4,0,.2,1);
+                z-index: 1040;
+                display: flex;
+                flex-direction: column;
+            }
+            #sidebar-wrapper.toggled {
+                margin-left: -256px;
+            }
+            #page-content-wrapper {
+                min-width: 0;
+                width: 100%;
+                transition: width 0.25s cubic-bezier(.4,0,.2,1);
+            }
+
+            /* ── Top App Bar (mobile only) ─────────────────── */
+            .top-app-bar {
+                display: none;
+            }
+
+            /* ── Page Content ──────────────────────────────── */
+            .page-content {
+                padding: 24px;
+                max-width: 1280px;
+                margin: 0 auto;
+                width: 100%;
+            }
+
+            /* ── MD3 Page Header ───────────────────────────── */
+            .md-page-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 24px;
+                flex-wrap: wrap;
+            }
+            .md-page-header h1 {
+                font-size: 28px;
+                font-weight: 400;
+                color: var(--md-on-surface);
+                margin: 0;
+                line-height: 1.2;
+            }
+            .md-page-header .subtitle {
+                font-size: 14px;
+                color: var(--md-on-surface-variant);
+                margin: 4px 0 0;
+            }
+
+            /* ── MD3 Alert (Snackbar-style) ────────────────── */
+            .md-alert {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 14px 20px;
+                border-radius: var(--md-shape-sm);
+                font-size: 14px;
+                font-weight: 500;
+                margin-bottom: 16px;
+                line-height: 20px;
+            }
+            .md-alert.success {
+                background: var(--md-primary-container);
+                color: var(--md-on-primary-container);
+            }
+            .md-alert.error {
+                background: var(--md-error-container);
+                color: var(--md-on-error-container);
+            }
+            .md-alert .md-alert-close {
+                margin-left: auto;
+                background: none;
+                border: none;
+                padding: 0;
+                cursor: pointer;
+                font-size: 16px;
+                color: inherit;
+                opacity: .7;
+                line-height: 1;
+            }
+            .md-alert .md-alert-close:hover { opacity: 1; }
+
+            /* ── Pagination MD3 ────────────────────────────── */
+            .pagination .page-link {
+                color: var(--md-primary);
+                border-radius: var(--md-shape-xs);
+                margin: 0 2px;
+                font-size: 13px;
+                border-color: var(--md-outline-variant);
+            }
+            .pagination .page-item.active .page-link {
+                background: var(--md-primary);
+                border-color: var(--md-primary);
+            }
+
+            @media (max-width: 992px) {
+                #sidebar-wrapper {
+                    margin-left: -256px;
+                    position: fixed;
+                    height: 100vh;
+                    box-shadow: var(--md-elev-3);
+                }
+                #sidebar-wrapper.toggled {
+                    margin-left: 0;
+                }
+                .top-app-bar {
+                    display: flex;
+                    height: 56px;
+                    background: var(--md-surface-container-lowest);
+                    border-bottom: 1px solid var(--md-outline-variant);
+                    align-items: center;
+                    padding: 0 8px;
+                    gap: 4px;
+                    position: sticky;
+                    top: 0;
+                    z-index: 100;
+                }
+            }
+        </style>
+    </head>
+    <body>
+
+        <div id="wrapper">
+            @include('components.layouts.partials.sidebar')
+
+            <div id="page-content-wrapper" class="d-flex flex-column">
+
+                {{-- Top App Bar (mobile toggle) --}}
+                <div class="top-app-bar">
+                    <button class="btn-md-icon top-app-bar-toggle" id="sidebarToggle" title="Menu">
+                        <i class="bi bi-list" style="font-size:20px"></i>
+                    </button>
+                    <span class="top-app-bar-title" id="topAppBarTitle"></span>
+                </div>
+
+                <main class="page-content flex-grow-1">
+                    @yield('content')
+                </main>
+
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const sidebarToggle = document.getElementById('sidebarToggle');
+                const sidebarWrapper = document.getElementById('sidebar-wrapper');
+
+                if (sidebarToggle) {
+                    sidebarToggle.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        sidebarWrapper.classList.toggle('toggled');
+                    });
+                }
+
+                // Close sidebar when clicking outside on mobile
+                document.addEventListener('click', function (e) {
+                    if (window.innerWidth <= 992 &&
+                        sidebarWrapper && sidebarWrapper.classList.contains('toggled') &&
+                        !sidebarWrapper.contains(e.target) &&
+                        e.target !== sidebarToggle) {
+                        sidebarWrapper.classList.remove('toggled');
+                    }
+                });
+            });
+        </script>
+        @stack('scripts')
+    </body>
 </html>

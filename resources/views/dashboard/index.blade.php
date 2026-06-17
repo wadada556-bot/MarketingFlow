@@ -105,24 +105,33 @@
     border: 1px solid var(--md-outline-variant);
     border-radius: var(--md-shape-sm);
     overflow: hidden;
-    margin-bottom: 6px;
+    background: var(--md-surface);
 }
 .stock-group-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
+    align-items: flex-start;
+    padding: 12px 14px 12px 16px;
     cursor: pointer;
     transition: background .12s;
-    gap: 8px;
+    gap: 10px;
+    background: var(--md-surface);
+    position: relative;
+}
+.stock-group-header::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    border-radius: 0;
 }
 .stock-group-header:hover { background: var(--md-surface-container-low); }
-.stock-group-header.danger-header { background: var(--md-error-container); }
-.stock-group-header.warning-header { background: var(--md-warning-container); }
+.stock-group-header.danger-header::before  { background: var(--md-error); }
+.stock-group-header.warning-header::before { background: var(--md-warning); }
 .stock-group-body {
     display: none;
-    padding: 8px 12px 10px;
+    padding: 8px 14px 12px 18px;
     background: var(--md-surface-container-lowest);
+    border-top: 1px solid var(--md-outline-variant);
 }
 
 /* Ads table row */
@@ -205,19 +214,14 @@
     border-radius: var(--md-shape-md);
     box-shadow: 0 4px 20px rgba(0,0,0,.12);
     z-index: 1000;
-    display: flex;
-    align-items: stretch;
     overflow: hidden;
 }
 
-/* Left sidebar: presets as bordered buttons */
 .drp-presets {
     display: flex;
     flex-direction: column;
-    padding: 16px 12px;
-    gap: 10px;
-    border-right: 1px solid var(--md-outline-variant);
-    flex-shrink: 0;
+    padding: 12px;
+    gap: 8px;
 }
 .drp-preset {
     text-align: center;
@@ -231,7 +235,7 @@
     cursor: pointer;
     transition: all .12s;
     white-space: nowrap;
-    min-width: 132px;
+    min-width: 160px;
 }
 .drp-preset:hover {
     border-color: var(--md-primary);
@@ -242,120 +246,13 @@
     color: var(--md-primary);
     background: color-mix(in srgb, var(--md-primary) 6%, transparent);
 }
-
-/* Right: calendar area */
-.drp-cal-area {
-    padding: 16px 18px;
-    min-width: 560px;
-}
-.drp-cal-top {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 14px;
-}
-.drp-kustom {
-    padding: 6px 18px;
-    font-size: 13px;
-    font-weight: 500;
-    border: 1px solid var(--md-primary);
-    background: var(--md-surface);
-    color: var(--md-primary);
-    border-radius: var(--md-shape-xs);
-    cursor: pointer;
-    transition: all .12s;
-}
-.drp-kustom:hover  { background: color-mix(in srgb, var(--md-primary) 8%, transparent); }
-.drp-kustom.active { background: color-mix(in srgb, var(--md-primary) 12%, transparent); }
-
-.drp-cal-nav {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-bottom: 10px;
-}
-.drp-cal-title {
-    flex: 1;
-    text-align: center;
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--md-on-surface);
-    letter-spacing: .5px;
-}
-.drp-cal-spacer { width: 56px; flex-shrink: 0; }
-.drp-nav-btn {
-    width: 30px; height: 30px;
-    border: none; background: transparent;
-    border-radius: var(--md-shape-full);
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
+.drp-preset-clear {
+    border-color: var(--md-outline-variant);
     color: var(--md-on-surface-variant);
-    display: flex; align-items: center; justify-content: center;
-    transition: background .1s;
-    flex-shrink: 0;
 }
-.drp-nav-btn:hover { background: var(--md-surface-container-high); color: var(--md-on-surface); }
-
-.drp-months {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 28px;
-}
-.drp-month-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 2px 0;
-}
-.drp-day-head {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--md-on-surface-variant);
-    text-align: center;
-    padding: 4px 0 8px;
-}
-.drp-day {
-    font-size: 13px;
-    cursor: pointer;
-    color: var(--md-on-surface);
-    height: 36px;
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-}
-.drp-day-inner {
-    width: 34px; height: 34px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: var(--md-shape-full);
-    position: relative;
-    transition: background .1s;
-}
-.drp-day:hover:not(.other-month) .drp-day-inner { background: var(--md-surface-container-high); }
-.drp-day.other-month { color: var(--md-outline-variant); cursor: default; }
-.drp-day.other-month:hover .drp-day-inner { background: transparent; }
-.drp-day.disabled { color: var(--md-outline-variant); cursor: default; }
-.drp-day.disabled:hover .drp-day-inner { background: transparent; }
-
-/* range connector tint */
-.drp-day.in-range    { background: color-mix(in srgb, var(--md-primary) 14%, transparent); }
-.drp-day.range-start { background: linear-gradient(to right, transparent 50%, color-mix(in srgb, var(--md-primary) 14%, transparent) 50%); }
-.drp-day.range-end   { background: linear-gradient(to left,  transparent 50%, color-mix(in srgb, var(--md-primary) 14%, transparent) 50%); }
-.drp-day.range-start.range-end { background: transparent; }
-
-/* selected circle */
-.drp-day.selected .drp-day-inner {
-    background: var(--md-primary);
-    color: var(--md-on-primary);
-    font-weight: 600;
-}
-.drp-day.selected:hover .drp-day-inner { background: var(--md-primary); }
-
-/* today dot */
-.drp-day.today:not(.selected) .drp-day-inner::after {
-    content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
-    width: 4px; height: 4px; border-radius: 50%; background: var(--md-primary);
-}
-.drp-day.selected.today .drp-day-inner::after {
-    content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
-    width: 4px; height: 4px; border-radius: 50%; background: var(--md-on-primary);
+.drp-preset-clear:hover {
+    border-color: var(--md-error);
+    color: var(--md-error);
 }
 
 /* Ranking scrollable list */
@@ -369,27 +266,7 @@
 #store-ranking::-webkit-scrollbar-track { background: transparent; }
 #store-ranking::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 4px; }
 
-/* Stock modal scrollable body */
-.stock-modal-body {
-    overflow-y: auto;
-    flex: 1;
-    min-height: 0;
-    padding: 16px 24px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--md-outline-variant) transparent;
-}
-.stock-modal-body::-webkit-scrollbar { width: 5px; }
-.stock-modal-body::-webkit-scrollbar-track { background: transparent; }
-.stock-modal-body::-webkit-scrollbar-thumb {
-    background: var(--md-outline-variant);
-    border-radius: 4px;
-}
-.stock-modal-body::-webkit-scrollbar-thumb:hover {
-    background: var(--md-on-surface-variant);
-}
+
 </style>
 @endpush
 
@@ -434,7 +311,6 @@
 
             {{-- Dropdown panel --}}
             <div id="drp-panel" class="drp-panel" style="display:none">
-                {{-- Left: presets --}}
                 <div class="drp-presets">
                     <button class="drp-preset {{ $currentPeriod === 'today'   ? 'active' : '' }}"
                             onclick="drpPreset('today')">Hari ini</button>
@@ -443,29 +319,10 @@
                     <button class="drp-preset {{ $currentPeriod === '7d'      ? 'active' : '' }}"
                             onclick="drpPreset('7d')">7 hari terakhir</button>
                     <button class="drp-preset {{ $currentPeriod === '30d'     ? 'active' : '' }}"
-                            onclick="drpPreset('30d')">30 hari terak…</button>
-                </div>
-
-                {{-- Right: calendar --}}
-                <div class="drp-cal-area">
-                    <div class="drp-cal-top">
-                        <button id="drp-kustom-btn" class="drp-kustom {{ $currentPeriod === 'custom' ? 'active' : '' }}"
-                                onclick="drpClearPick()">Kustom</button>
-                        <span id="drp-hint" style="font-size:12px;color:var(--md-on-surface-variant);margin-left:12px"></span>
-                    </div>
-                    <div class="drp-cal-nav">
-                        <button onclick="drpNavMonth(-12)" class="drp-nav-btn" title="Tahun sebelumnya">&#171;</button>
-                        <button onclick="drpNavMonth(-1)"  class="drp-nav-btn" title="Bulan sebelumnya">&#8249;</button>
-                        <span id="drp-cal-lbl-l" class="drp-cal-title"></span>
-                        <span class="drp-cal-spacer"></span>
-                        <span id="drp-cal-lbl-r" class="drp-cal-title"></span>
-                        <button onclick="drpNavMonth(1)"   class="drp-nav-btn" title="Bulan berikutnya">&#8250;</button>
-                        <button onclick="drpNavMonth(12)"  class="drp-nav-btn" title="Tahun berikutnya">&#187;</button>
-                    </div>
-                    <div class="drp-months">
-                        <div id="drp-month-l" class="drp-month"></div>
-                        <div id="drp-month-r" class="drp-month"></div>
-                    </div>
+                            onclick="drpPreset('30d')">30 hari terakhir</button>
+                    <button class="drp-preset drp-preset-clear" onclick="drpClear()">
+                        <i class="bi bi-x-circle" style="font-size:12px;margin-right:5px"></i>Hapus filter tanggal
+                    </button>
                 </div>
             </div>
         </div>
@@ -639,36 +496,39 @@
                         $alertCnt  = $alert['alert_count'];
                         $dangerCnt = $alert['danger_count'];
                     @endphp
-                    <div class="stock-group" @if($idx >= 5) style="display:none" @endif>
+                    <div class="stock-group">
                         <div class="stock-group-header {{ $isDanger ? 'danger-header' : 'warning-header' }}"
                              onclick="toggleStock({{ $idx }})">
-                            <div style="min-width:0;flex:1">
-                                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
-                                    <span style="
-                                        font-size:13px;font-weight:600;
-                                        color:{{ $isDanger ? 'var(--md-on-error-container)' : 'var(--md-on-warning-container)' }};
-                                    ">{{ $alert['parent_sku'] }}</span>
-                                    @foreach($alert['stores'] as $store)
-                                        <span class="md-chip {{ $isDanger ? 'error' : 'warning' }}" style="font-size:10px;padding:2px 8px">{{ $store }}</span>
-                                    @endforeach
+                            <i class="bi {{ $isDanger ? 'bi-x-circle-fill' : 'bi-exclamation-triangle-fill' }}"
+                               style="font-size:15px;flex-shrink:0;margin-top:1px;color:{{ $isDanger ? 'var(--md-error)' : 'var(--md-warning)' }}"></i>
+                            <div style="min-width:0;flex:1;overflow:hidden">
+                                <span style="font-size:13px;font-weight:600;color:var(--md-on-surface);
+                                             display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                    {{ $alert['parent_sku'] }}
+                                </span>
+                                <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px">
                                     @if($alert['category'])
-                                        <span class="md-chip surface" style="font-size:10px;padding:2px 8px">{{ $alert['category'] }}</span>
+                                        <span class="md-chip surface" style="font-size:10px;padding:2px 7px;flex-shrink:0">{{ $alert['category'] }}</span>
                                     @endif
+                                    @php
+                                        $storeShow  = array_slice($alert['stores'], 0, 2);
+                                        $storeExtra = count($alert['stores']) - 2;
+                                    @endphp
+                                    <span style="font-size:11px;color:var(--md-on-surface-variant);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                        {{ implode(' · ', $storeShow) }}@if($storeExtra > 0) <span style="color:var(--md-outline)">+{{ $storeExtra }}</span>@endif
+                                        · {{ $alertCnt }} varian
+                                        @if($dangerCnt > 0)
+                                            · <span style="color:var(--md-error);font-weight:600">{{ $dangerCnt }} kritis</span>
+                                        @endif
+                                    </span>
                                 </div>
-                                <p style="
-                                    font-size:11px;margin:0;
-                                    color:{{ $isDanger ? 'var(--md-on-error-container)' : 'var(--md-on-warning-container)' }};
-                                ">
-                                    {{ $alertCnt }} variant bermasalah
-                                    @if($dangerCnt > 0) · <strong>{{ $dangerCnt }} kritis</strong>@endif
-                                </p>
                             </div>
                             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
                                 <span class="md-chip {{ $isDanger ? 'error' : 'warning' }}">
                                     {{ $isDanger ? 'Kritis' : 'Menipis' }}
                                 </span>
                                 <i id="stock-chevron-{{ $idx }}" class="bi bi-chevron-down"
-                                   style="font-size:12px;transition:transform .2s;color:{{ $isDanger ? 'var(--md-on-error-container)' : 'var(--md-on-warning-container)' }}"></i>
+                                   style="font-size:12px;transition:transform .2s;color:var(--md-on-surface-variant)"></i>
                             </div>
                         </div>
                         <div id="stock-body-{{ $idx }}" class="stock-group-body">
@@ -677,12 +537,13 @@
                                     @php $vDanger = $variant['status'] === 'danger'; $vWarn = $variant['status'] === 'warning'; @endphp
                                     <div style="
                                         display:flex;justify-content:space-between;align-items:center;
-                                        padding:6px 8px;
+                                        padding:6px 8px;gap:8px;
                                         background:var(--md-surface-container-low);
                                         border-radius:var(--md-shape-xs);
                                     ">
-                                        <span style="font-size:12px;font-family:monospace;color:var(--md-on-surface)">{{ $variant['sku'] }}</span>
-                                        <span class="md-chip {{ $vDanger ? 'error' : ($vWarn ? 'warning' : 'primary') }}" style="font-size:11px;min-width:52px;text-align:center">
+                                        <span style="font-size:12px;font-family:monospace;color:var(--md-on-surface);
+                                                     min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $variant['sku'] }}</span>
+                                        <span class="md-chip {{ $vDanger ? 'error' : ($vWarn ? 'warning' : 'primary') }}" style="font-size:11px;min-width:52px;text-align:center;flex-shrink:0">
                                             {{ number_format($variant['qty']) }} pcs
                                         </span>
                                     </div>
@@ -693,14 +554,6 @@
                 @endforeach
             </div>
 
-            @if($stockAlertCount > 5)
-                <button onclick="openStockModal()"
-                        class="btn-md-outlined"
-                        style="width:100%;margin-top:12px;justify-content:center">
-                    <i class="bi bi-list-ul"></i>
-                    Lihat semua {{ $stockAlertCount }} peringatan stok
-                </button>
-            @endif
         @endif
 
     </div>
@@ -780,134 +633,6 @@
 
 </div>
 
-{{-- ── Modal: Semua Peringatan Stok ─────────────────────── --}}
-@if($stockAlertCount > 5)
-<div id="stock-modal-overlay"
-     onclick="if(event.target===this)closeStockModal()"
-     style="
-        display:none;position:fixed;inset:0;z-index:1050;
-        background:rgba(0,0,0,.5);
-        align-items:center;justify-content:center;
-        padding:24px;
-     ">
-    <div style="
-        background:var(--md-surface);
-        border-radius:var(--md-shape-lg);
-        width:100%;max-width:640px;
-        max-height:82vh;
-        display:flex;flex-direction:column;
-        box-shadow:0 8px 40px rgba(0,0,0,.28);
-        overflow:hidden;
-    ">
-        {{-- Header --}}
-        <div style="
-            display:flex;justify-content:space-between;align-items:center;
-            padding:18px 24px;
-            border-bottom:1px solid var(--md-outline-variant);
-            flex-shrink:0;
-            gap:12px;
-        ">
-            <div style="min-width:0">
-                <p style="font-size:16px;font-weight:600;color:var(--md-on-surface);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                    Semua Peringatan Stok
-                </p>
-                <p style="font-size:12px;color:var(--md-on-surface-variant);margin:3px 0 0">
-                    {{ $stockAlertCount }} produk butuh perhatian
-                </p>
-            </div>
-            <button onclick="closeStockModal()" style="
-                background:none;border:none;cursor:pointer;
-                width:36px;height:36px;flex-shrink:0;
-                border-radius:50%;
-                color:var(--md-on-surface-variant);
-                font-size:16px;line-height:1;
-                display:flex;align-items:center;justify-content:center;
-                transition:background .12s;
-            " onmouseenter="this.style.background='var(--md-surface-container-high)'"
-               onmouseleave="this.style.background='none'"
-               title="Tutup">
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
-
-        {{-- Konten (scrollable) --}}
-        <div class="stock-modal-body">
-            @foreach($stockAlerts as $alert)
-                @php
-                    $midx      = 'm' . $loop->index;
-                    $isDanger  = $alert['status'] === 'danger';
-                    $alertCnt  = $alert['alert_count'];
-                    $dangerCnt = $alert['danger_count'];
-                @endphp
-                <div class="stock-group">
-                    <div class="stock-group-header {{ $isDanger ? 'danger-header' : 'warning-header' }}"
-                         onclick="toggleStock('{{ $midx }}')">
-                        <div style="min-width:0;flex:1">
-                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
-                                <span style="
-                                    font-size:13px;font-weight:600;
-                                    color:{{ $isDanger ? 'var(--md-on-error-container)' : 'var(--md-on-warning-container)' }};
-                                ">{{ $alert['parent_sku'] }}</span>
-                                @foreach($alert['stores'] as $store)
-                                    <span class="md-chip {{ $isDanger ? 'error' : 'warning' }}" style="font-size:10px;padding:2px 8px">{{ $store }}</span>
-                                @endforeach
-                                @if($alert['category'])
-                                    <span class="md-chip surface" style="font-size:10px;padding:2px 8px">{{ $alert['category'] }}</span>
-                                @endif
-                            </div>
-                            <p style="
-                                font-size:11px;margin:0;
-                                color:{{ $isDanger ? 'var(--md-on-error-container)' : 'var(--md-on-warning-container)' }};
-                            ">
-                                {{ $alertCnt }} variant bermasalah
-                                @if($dangerCnt > 0) · <strong>{{ $dangerCnt }} kritis</strong>@endif
-                            </p>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-                            <span class="md-chip {{ $isDanger ? 'error' : 'warning' }}">
-                                {{ $isDanger ? 'Kritis' : 'Menipis' }}
-                            </span>
-                            <i id="stock-chevron-{{ $midx }}" class="bi bi-chevron-down"
-                               style="font-size:12px;transition:transform .2s;color:{{ $isDanger ? 'var(--md-on-error-container)' : 'var(--md-on-warning-container)' }}"></i>
-                        </div>
-                    </div>
-                    <div id="stock-body-{{ $midx }}" class="stock-group-body">
-                        <div style="display:flex;flex-direction:column;gap:4px">
-                            @foreach($alert['variants'] as $variant)
-                                @php $vDanger = $variant['status'] === 'danger'; $vWarn = $variant['status'] === 'warning'; @endphp
-                                <div style="
-                                    display:flex;justify-content:space-between;align-items:center;
-                                    padding:7px 10px;
-                                    background:var(--md-surface-container-low);
-                                    border-radius:var(--md-shape-xs);
-                                    gap:8px;
-                                ">
-                                    <span style="font-size:12px;font-family:monospace;color:var(--md-on-surface);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ $variant['sku'] }}</span>
-                                    <span class="md-chip {{ $vDanger ? 'error' : ($vWarn ? 'warning' : 'primary') }}" style="font-size:11px;min-width:60px;text-align:center;flex-shrink:0">
-                                        {{ number_format($variant['qty']) }} pcs
-                                    </span>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-
-        {{-- Footer --}}
-        <div style="
-            padding:14px 24px;
-            border-top:1px solid var(--md-outline-variant);
-            flex-shrink:0;
-            display:flex;justify-content:flex-end;
-        ">
-            <button onclick="closeStockModal()" class="btn-md-outlined" style="min-width:96px;justify-content:center">
-                Tutup
-            </button>
-        </div>
-    </div>
-</div>
-@endif
 
 @endsection
 
@@ -923,23 +648,6 @@ function toggleStock(idx) {
     chevron.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
-function openStockModal() {
-    var overlay = document.getElementById('stock-modal-overlay');
-    if (!overlay) return;
-    overlay.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-}
-
-function closeStockModal() {
-    var overlay = document.getElementById('stock-modal-overlay');
-    if (!overlay) return;
-    overlay.style.display = 'none';
-    document.body.style.overflow = '';
-}
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeStockModal();
-});
 
 const COLORS               = @json($jsColors);
 const STORES               = @json($jsStores);
@@ -1275,64 +983,11 @@ document.getElementById('storeFilter').addEventListener('change', function () {
 
 // ── Date Range Picker ────────────────────────────────────
 (function () {
-    const MONTHS_EN = ['Jan','Feb','Mar','Apr','May','Jun',
-                       'Jul','Aug','Sep','Oct','Nov','Dec'];
-    const DAYS = ['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
-
-    const INIT_START = '{{ $curStart->format('Y-m-d') }}';
-    const INIT_END   = '{{ $curEnd->format('Y-m-d') }}';
-
-    // parse "YYYY-MM-DD" as LOCAL midnight (hindari pergeseran UTC)
-    function parseLocal(iso) {
-        const [y, m, d] = iso.split('-').map(Number);
-        return new Date(y, m - 1, d);
-    }
-    const TODAY = new Date(); TODAY.setHours(0,0,0,0);
-
-    let calLeft  = parseLocal(INIT_START); calLeft.setDate(1);
-    let calRight = new Date(calLeft.getFullYear(), calLeft.getMonth() + 1, 1);
-
-    let pickStart = null, pickEnd = null, hovDay = null;
-
     const trigger = document.getElementById('drp-trigger');
     const panel   = document.getElementById('drp-panel');
-    const lblL    = document.getElementById('drp-cal-lbl-l');
-    const lblR    = document.getElementById('drp-cal-lbl-r');
-    const kustom  = document.getElementById('drp-kustom-btn');
-
-    function fmtISO(d) {
-        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    }
 
     function openPanel() {
-        // Preserve mid-selection (pickStart set, pickEnd null) agar tidak hilang
-        // saat panel tidak sengaja ditutup setelah klik tanggal pertama
-        if (!(pickStart && !pickEnd)) {
-            pickStart = parseLocal(INIT_START);
-            pickEnd   = parseLocal(INIT_END);
-        }
-        hovDay = null;
-
-        // Posisikan kalender: calLeft di bulan pickStart, calRight di bulan pickEnd
-        // (jika berbeda). Jika sama bulan atau mid-selection, calRight = bulan berikutnya.
-        const startRef = pickStart || parseLocal(INIT_START);
-        calLeft = new Date(startRef.getFullYear(), startRef.getMonth(), 1);
-
-        if (pickStart && pickEnd) {
-            const endMonth = new Date(pickEnd.getFullYear(), pickEnd.getMonth(), 1);
-            if (endMonth.getTime() > calLeft.getTime()) {
-                calRight = endMonth;
-            } else {
-                calRight = new Date(calLeft.getFullYear(), calLeft.getMonth() + 1, 1);
-            }
-        } else {
-            calRight = new Date(calLeft.getFullYear(), calLeft.getMonth() + 1, 1);
-        }
-
-        renderCalendars();
-        const hint = document.getElementById('drp-hint');
-        if (hint) hint.textContent = (pickStart && !pickEnd) ? 'Pilih tanggal akhir' : '';
-        panel.style.display = 'flex';
+        panel.style.display = 'block';
         trigger.classList.add('open');
     }
     function closePanel() {
@@ -1345,7 +1000,6 @@ document.getElementById('storeFilter').addEventListener('change', function () {
     };
 
     window.drpPreset = function (key) {
-        kustom.classList.remove('active');
         closePanel();
         const params = new URLSearchParams(window.location.search);
         params.set('period', key);
@@ -1354,115 +1008,9 @@ document.getElementById('storeFilter').addEventListener('change', function () {
         window.location.href = '{{ route("dashboard") }}?' + params.toString();
     };
 
-    // Kustom button → clear selection to begin a fresh range pick
-    window.drpClearPick = function () {
-        pickStart = null; pickEnd = null; hovDay = null;
-        kustom.classList.add('active');
-        const hint = document.getElementById('drp-hint');
-        if (hint) hint.textContent = 'Pilih tanggal mulai';
-        renderCalendars();
-    };
-
-    window.drpNavMonth = function (delta) {
-        calLeft  = new Date(calLeft.getFullYear(), calLeft.getMonth() + delta, 1);
-        calRight = new Date(calLeft.getFullYear(), calLeft.getMonth() + 1, 1);
-        renderCalendars();
-    };
-
-    function fmtTrigger(d) {
-        const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                        'Jul','Aug','Sep','Oct','Nov','Dec'];
-        return months[d.getMonth()] + ' ' + String(d.getDate()).padStart(2,'0') + ', ' + d.getFullYear();
-    }
-
-    function apply() {
-        const start = pickStart <= pickEnd ? pickStart : pickEnd;
-        const end   = pickStart <= pickEnd ? pickEnd   : pickStart;
-
-        // Update trigger display sebelum navigasi
-        document.getElementById('drp-prefix').textContent = 'Kustom:';
-        document.getElementById('drp-from').value = fmtTrigger(start);
-        document.getElementById('drp-to').value   = fmtTrigger(end);
-
-        const params = new URLSearchParams(window.location.search);
-        params.set('period',    'custom');
-        params.set('date_from', fmtISO(start));
-        params.set('date_to',   fmtISO(end));
-        window.location.href = '{{ route("dashboard") }}?' + params.toString();
-    }
-
-    function renderCalendars() {
-        lblL.textContent = String(calLeft.getMonth()+1).padStart(2,'0')  + ' / ' + calLeft.getFullYear();
-        lblR.textContent = String(calRight.getMonth()+1).padStart(2,'0') + ' / ' + calRight.getFullYear();
-        renderMonth(document.getElementById('drp-month-l'), calLeft);
-        renderMonth(document.getElementById('drp-month-r'), calRight);
-    }
-
-    function renderMonth(el, monthDate) {
-        const year  = monthDate.getFullYear();
-        const month = monthDate.getMonth();
-
-        const first    = new Date(year, month, 1);
-        const dowFirst = (first.getDay() + 6) % 7; // 0=Mon
-        const start    = new Date(first); start.setDate(1 - dowFirst);
-
-        let html = '<div class="drp-month-grid">';
-        DAYS.forEach(d => { html += `<div class="drp-day-head">${d}</div>`; });
-
-        for (let i = 0; i < 42; i++) {
-            const d = new Date(start); d.setDate(start.getDate() + i);
-            const isOther    = d.getMonth() !== month;
-            const isToday    = d.getTime() === TODAY.getTime();
-            const isFuture   = d > TODAY;
-            const isDisabled = isOther || isFuture;
-
-            let a = pickStart, b = pickEnd || hovDay;
-            if (a && b && a > b) { const t = a; a = b; b = t; }
-
-            const isSel     = (pickStart && d.getTime() === pickStart.getTime()) ||
-                              (pickEnd   && d.getTime() === pickEnd.getTime());
-            const isInRange = a && b && d > a && d < b;
-            const isRangeS  = a && b && d.getTime() === a.getTime();
-            const isRangeE  = a && b && d.getTime() === b.getTime();
-
-            let cls = 'drp-day';
-            if (isOther)               cls += ' other-month';
-            if (isFuture && !isOther)  cls += ' disabled';
-            if (isToday)               cls += ' today';
-            if (isInRange && !isSel)   cls += ' in-range';
-            if (isRangeS && !isSel)    cls += ' range-start';
-            if (isRangeE && !isSel)    cls += ' range-end';
-            if (isSel)                 cls += ' selected';
-
-            const iso   = fmtISO(d);
-            const guard = isDisabled ? '' :
-                `onclick="drpDayClick('${iso}')" onmouseenter="drpDayHover('${iso}')" onmouseleave="drpDayLeave()"`;
-            html += `<div class="${cls}" ${guard}><span class="drp-day-inner">${d.getDate()}</span></div>`;
-        }
-        html += '</div>';
-        el.innerHTML = html;
-    }
-
-    window.drpDayClick = function (iso) {
-        const d = parseLocal(iso);
-        const hint = document.getElementById('drp-hint');
-        if (!pickStart || (pickStart && pickEnd)) {
-            pickStart = d; pickEnd = null; hovDay = null;
-            kustom.classList.add('active');
-            if (hint) hint.textContent = 'Pilih tanggal akhir';
-            renderCalendars();
-        } else {
-            pickEnd = d;
-            if (hint) hint.textContent = '';
-            renderCalendars();
-            apply();   // range lengkap → terapkan
-        }
-    };
-    window.drpDayHover = function (iso) {
-        if (pickStart && !pickEnd) { hovDay = parseLocal(iso); renderCalendars(); }
-    };
-    window.drpDayLeave = function () {
-        if (pickStart && !pickEnd) { hovDay = null; renderCalendars(); }
+    window.drpClear = function () {
+        closePanel();
+        window.location.href = '{{ route("dashboard") }}';
     };
 
     // Close on outside click

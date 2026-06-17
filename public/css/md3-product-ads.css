@@ -1,0 +1,496 @@
+/* ================================================================
+   MD3 Design System — Product Ads Module
+   Material Design 3  ·  m3.material.io
+   ================================================================ */
+
+/* ── Color Tokens ─────────────────────────────────────────────── */
+:root {
+  /* Primary (Teal Green) */
+  --md-primary:                  #006A60;
+  --md-on-primary:               #FFFFFF;
+  --md-primary-container:        #9CF1E4;
+  --md-on-primary-container:     #00201C;
+
+  /* Secondary (Muted Green) */
+  --md-secondary:                #4A6358;
+  --md-on-secondary:             #FFFFFF;
+  --md-secondary-container:      #CCE8DC;
+  --md-on-secondary-container:   #072019;
+
+  /* Tertiary (Slate Blue) */
+  --md-tertiary:                 #416277;
+  --md-tertiary-container:       #C5E7FF;
+  --md-on-tertiary-container:    #001E2C;
+
+  /* Error */
+  --md-error:                    #BA1A1A;
+  --md-on-error:                 #FFFFFF;
+  --md-error-container:          #FFDAD6;
+  --md-on-error-container:       #410002;
+
+  /* Warning (Amber) */
+  --md-warning:                  #7A5800;
+  --md-warning-container:        #FFDEAA;
+  --md-on-warning-container:     #251A00;
+
+  /* Surface */
+  --md-surface:                  #FAFDFC;
+  --md-on-surface:               #191C1B;
+  --md-surface-variant:          #DBE5E0;
+  --md-on-surface-variant:       #3F4946;
+  --md-surface-container-lowest: #FFFFFF;
+  --md-surface-container-low:    #F4F7F5;
+  --md-surface-container:        #EEF2F0;
+  --md-surface-container-high:   #E8ECE9;
+  --md-surface-container-highest:#E2E6E3;
+
+  /* Outline */
+  --md-outline:                  #6F7977;
+  --md-outline-variant:          #BFC8C5;
+
+  /* Shape */
+  --md-shape-xs:   4px;
+  --md-shape-sm:   8px;
+  --md-shape-md:   12px;
+  --md-shape-lg:   16px;
+  --md-shape-xl:   28px;
+  --md-shape-full: 9999px;
+
+  /* Elevation */
+  --md-elev-1: 0 1px 2px rgba(0,0,0,.10), 0 1px 3px 1px rgba(0,0,0,.06);
+  --md-elev-2: 0 1px 2px rgba(0,0,0,.12), 0 2px 6px 2px rgba(0,0,0,.08);
+  --md-elev-3: 0 4px 8px 3px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.12);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.btn-md-filled {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  border: none;
+  border-radius: var(--md-shape-full);
+  padding: 8px 20px;
+  font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: .1px;
+  text-decoration: none; white-space: nowrap;
+  transition: box-shadow .2s, filter .15s;
+  cursor: pointer;
+}
+.btn-md-filled:hover  { color: var(--md-on-primary); filter: brightness(.92); box-shadow: var(--md-elev-1); }
+.btn-md-filled:active { filter: brightness(.86); }
+.btn-md-filled:focus-visible { outline: 3px solid var(--md-primary-container); outline-offset: 2px; }
+
+.btn-md-tonal {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  border: none; border-radius: var(--md-shape-full);
+  padding: 8px 20px;
+  font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: .1px;
+  text-decoration: none; white-space: nowrap;
+  transition: box-shadow .2s, filter .15s; cursor: pointer;
+}
+.btn-md-tonal:hover { color: var(--md-on-secondary-container); filter: brightness(.96); box-shadow: var(--md-elev-1); }
+
+.btn-md-outlined {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent;
+  color: var(--md-primary);
+  border: 1px solid var(--md-outline);
+  border-radius: var(--md-shape-full);
+  padding: 8px 20px;
+  font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: .1px;
+  text-decoration: none; white-space: nowrap;
+  transition: background .15s; cursor: pointer;
+}
+.btn-md-outlined:hover { background: rgba(0,106,96,.08); color: var(--md-primary); }
+
+.btn-md-text {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent;
+  color: var(--md-primary);
+  border: none; border-radius: var(--md-shape-full);
+  padding: 8px 12px;
+  font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: .1px;
+  text-decoration: none; white-space: nowrap;
+  transition: background .15s; cursor: pointer;
+}
+.btn-md-text:hover { background: rgba(0,106,96,.08); color: var(--md-primary); }
+
+.btn-md-error-filled {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--md-error); color: var(--md-on-error);
+  border: none; border-radius: var(--md-shape-full);
+  padding: 8px 20px;
+  font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: .1px;
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: filter .15s;
+}
+.btn-md-error-filled:hover  { color: var(--md-on-error); filter: brightness(.92); }
+.btn-md-error-filled:active { filter: brightness(.86); }
+
+.btn-md-error-tonal {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--md-error-container); color: var(--md-on-error-container);
+  border: none; border-radius: var(--md-shape-full);
+  padding: 8px 20px;
+  font-size: 14px; font-weight: 500; line-height: 20px; letter-spacing: .1px;
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: filter .15s;
+}
+.btn-md-error-tonal:hover { color: var(--md-on-error-container); filter: brightness(.96); }
+
+/* Icon Button — 40×40 circle */
+.btn-md-icon {
+  width: 40px; height: 40px; min-width: 40px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; padding: 0;
+  font-size: 16px; color: var(--md-on-surface-variant);
+  transition: background .15s, color .15s; cursor: pointer;
+  text-decoration: none;
+}
+.btn-md-icon:hover { background: var(--md-surface-container-highest); color: var(--md-on-surface); }
+.btn-md-icon:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
+/* variants */
+.btn-md-icon.primary { color: var(--md-primary); }
+.btn-md-icon.primary:hover { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+.btn-md-icon.error { color: var(--md-error); }
+.btn-md-icon.error:hover { background: var(--md-error-container); color: var(--md-on-error-container); }
+.btn-md-icon.warning { color: var(--md-warning); }
+.btn-md-icon.warning:hover { background: var(--md-warning-container); color: var(--md-on-warning-container); }
+.btn-md-icon.tertiary { color: var(--md-tertiary); }
+.btn-md-icon.tertiary:hover { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
+
+/* ── Chips ────────────────────────────────────────────────────── */
+.md-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--md-shape-full);
+  font-size: 12px; font-weight: 500; line-height: 16px; letter-spacing: .1px;
+  white-space: nowrap; border: none;
+}
+.md-chip.primary   { background: var(--md-primary-container);  color: var(--md-on-primary-container); }
+.md-chip.secondary { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.md-chip.error     { background: var(--md-error-container);     color: var(--md-on-error-container); }
+.md-chip.warning   { background: var(--md-warning-container);   color: var(--md-on-warning-container); }
+.md-chip.surface   { background: var(--md-surface-container-highest); color: var(--md-on-surface-variant); }
+.md-chip.outline   { background: transparent; color: var(--md-on-surface-variant); border: 1px solid var(--md-outline-variant); }
+.md-chip.info      { background: var(--md-tertiary-container); color: var(--md-on-tertiary-container); }
+
+/* ── Choice Chips (checkboxes styled as chips) ────────────────── */
+.md-chip-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.md-choice-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 14px;
+  border-radius: var(--md-shape-full);
+  background: transparent; border: 1px solid var(--md-outline);
+  font-size: 13px; font-weight: 500; letter-spacing: .1px;
+  color: var(--md-on-surface-variant);
+  cursor: pointer; transition: all .15s; user-select: none;
+}
+.md-choice-chip:hover { background: rgba(0,106,96,.06); color: var(--md-on-surface); }
+.md-choice-chip.checked {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  border-color: transparent;
+}
+.md-choice-chip .md-check-icon { font-size: 15px; display: none; }
+.md-choice-chip.checked .md-check-icon { display: inline; }
+
+/* ── Surface Containers (Cards) ──────────────────────────────── */
+.md-card {
+  background: var(--md-surface-container-lowest);
+  border-radius: var(--md-shape-lg);
+  border: 1px solid var(--md-outline-variant);
+  padding: 0;
+}
+.md-card-filled {
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-shape-lg);
+}
+.md-card-elevated {
+  background: var(--md-surface-container-lowest);
+  border-radius: var(--md-shape-lg);
+  box-shadow: var(--md-elev-1);
+}
+
+/* ── Form Fields ──────────────────────────────────────────────── */
+.md-field { margin-bottom: 20px; }
+.md-field-label,
+.md-field > label {
+  display: block;
+  font-size: 11px; font-weight: 500;
+  letter-spacing: .8px; text-transform: uppercase;
+  color: var(--md-on-surface-variant);
+  margin-bottom: 6px;
+}
+.md-field .form-control,
+.md-field .form-select {
+  border-radius: var(--md-shape-xs) !important;
+  border: 1px solid var(--md-outline) !important;
+  background: var(--md-surface) !important;
+  color: var(--md-on-surface) !important;
+  font-size: 14px; line-height: 20px;
+  padding: 10px 14px;
+  transition: border .12s;
+  box-shadow: none !important;
+}
+.md-field .form-control:focus,
+.md-field .form-select:focus {
+  border-color: var(--md-primary) !important;
+  border-width: 2px !important;
+  box-shadow: none !important;
+}
+.md-field .form-control.is-invalid,
+.md-field .form-select.is-invalid {
+  border-color: var(--md-error) !important;
+  border-width: 2px !important;
+}
+.md-field .invalid-feedback {
+  font-size: 12px; color: var(--md-error);
+}
+.md-field .input-group .form-control { border-radius: 0 var(--md-shape-xs) var(--md-shape-xs) 0 !important; }
+.md-field .input-group-text {
+  background: var(--md-surface-container-low) !important;
+  border: 1px solid var(--md-outline) !important;
+  border-right: none !important;
+  border-radius: var(--md-shape-xs) 0 0 var(--md-shape-xs) !important;
+  color: var(--md-on-surface-variant);
+}
+.md-field .form-check-input:checked {
+  background-color: var(--md-primary) !important;
+  border-color: var(--md-primary) !important;
+}
+
+/* ── Dialogs (Modals) ─────────────────────────────────────────── */
+.md-dialog .modal-content {
+  border-radius: var(--md-shape-xl) !important;
+  border: none !important;
+  background: var(--md-surface-container-high) !important;
+  overflow: hidden;
+  box-shadow: var(--md-elev-3) !important;
+}
+.md-dialog .modal-header {
+  border-bottom: none !important;
+  padding: 24px 24px 0 !important;
+  background: transparent !important;
+}
+.md-dialog .modal-title {
+  font-size: 18px; font-weight: 500; line-height: 26px;
+  color: var(--md-on-surface);
+}
+.md-dialog .modal-body {
+  padding: 12px 24px 0 !important;
+  color: var(--md-on-surface-variant);
+  font-size: 14px; line-height: 20px;
+}
+.md-dialog .modal-body .md-field .form-control,
+.md-dialog .modal-body .md-field .form-select {
+  background: var(--md-surface-container-low) !important;
+}
+.md-dialog .modal-footer {
+  border-top: none !important;
+  padding: 16px 16px 20px !important;
+  background: transparent !important;
+  justify-content: flex-end !important;
+  gap: 4px;
+}
+
+/* ── Side Sheet (Offcanvas) ───────────────────────────────────── */
+.md-side-sheet .offcanvas-header {
+  border-bottom: 1px solid var(--md-outline-variant) !important;
+  background: var(--md-surface-container-lowest) !important;
+  padding: 18px 24px !important;
+}
+.md-side-sheet .offcanvas-header .offcanvas-title {
+  font-size: 16px; font-weight: 500; color: var(--md-on-surface);
+  letter-spacing: .15px;
+}
+.md-side-sheet .offcanvas-header .btn-close {
+  opacity: .6;
+}
+.md-side-sheet .offcanvas-body {
+  background: var(--md-surface) !important;
+  padding: 24px;
+}
+.md-side-sheet .sheet-footer {
+  border-top: 1px solid var(--md-outline-variant);
+  padding: 14px 24px;
+  background: var(--md-surface-container-lowest);
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+
+/* ── Data Table ───────────────────────────────────────────────── */
+.md-table-wrap {
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-md);
+  overflow: hidden;
+}
+.md-table {
+  margin: 0; border-collapse: collapse;
+  background: var(--md-surface-container-lowest);
+  width: 100%;
+}
+.md-table thead th {
+  background: var(--md-surface-container);
+  color: var(--md-on-surface-variant);
+  font-size: 11px; font-weight: 500;
+  letter-spacing: .8px; text-transform: uppercase;
+  padding: 13px 16px;
+  border: none; white-space: nowrap;
+}
+.md-table tbody tr.product-row { border-bottom: 0; }
+.md-table tbody tr.product-row td {
+  border-bottom: 0;
+}
+.md-table tbody tr.sku-row td {
+  border-bottom: 1px solid var(--md-outline-variant);
+  padding-top: 0;
+}
+.md-table tbody tr.product-row:hover td,
+.md-table tbody tr.sku-row:hover td {
+  background: rgba(0,106,96,.04);
+}
+.md-table tbody td {
+  padding: 14px 16px;
+  border: none; border-bottom: 0;
+  color: var(--md-on-surface);
+  font-size: 14px; vertical-align: top;
+}
+
+/* Override Bootstrap badge → MD3 chip inside table */
+.md-table .badge.rounded-pill {
+  border-radius: var(--md-shape-full) !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  padding: 4px 10px !important;
+  letter-spacing: .1px;
+}
+.md-table .badge.bg-success.bg-opacity-10 {
+  background: var(--md-primary-container) !important;
+  color: var(--md-on-primary-container) !important;
+  border: none !important;
+}
+.md-table .badge.bg-danger.bg-opacity-10 {
+  background: var(--md-error-container) !important;
+  color: var(--md-on-error-container) !important;
+  border: none !important;
+}
+.md-table .badge.bg-secondary.bg-opacity-10 {
+  background: var(--md-surface-container-highest) !important;
+  color: var(--md-on-surface-variant) !important;
+  border: none !important;
+}
+.md-table .badge.bg-primary.bg-opacity-10 {
+  background: var(--md-secondary-container) !important;
+  color: var(--md-on-secondary-container) !important;
+  border: none !important;
+}
+
+/* ── Tab Navigation ───────────────────────────────────────────── */
+.md-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+.md-tab {
+  font-size: 14px; font-weight: 500; letter-spacing: .1px; line-height: 20px;
+  padding: 7px 18px;
+  border-radius: var(--md-shape-full);
+  color: var(--md-on-surface-variant);
+  text-decoration: none;
+  transition: background .15s, color .15s; white-space: nowrap;
+}
+.md-tab:hover { background: var(--md-surface-container-highest); color: var(--md-on-surface); }
+.md-tab.active { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+.md-tab .tab-count {
+  font-weight: 400; margin-left: 2px; opacity: .8;
+}
+.md-tab .tab-dot {
+  display: inline-block; width: 6px; height: 6px;
+  background: var(--md-error); border-radius: 50%;
+  margin-left: 2px; vertical-align: middle;
+}
+
+/* ── Timeline (Activity Log) ─────────────────────────────────── */
+.md-timeline { list-style: none; padding: 0; margin: 0; }
+.md-tl-item {
+  display: flex; gap: 16px;
+  padding-bottom: 28px; position: relative;
+}
+.md-tl-item:last-child { padding-bottom: 0; }
+.md-tl-dot {
+  flex-shrink: 0; width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--md-primary);
+  margin-top: 4px; position: relative;
+}
+.md-tl-item:not(:last-child) .md-tl-dot::after {
+  content: ''; position: absolute;
+  top: 10px; left: 4px;
+  width: 1px; height: calc(100% + 18px);
+  background: var(--md-outline-variant);
+}
+.md-tl-item:last-child .md-tl-dot { background: var(--md-outline); }
+.md-tl-body { flex: 1; min-width: 0; }
+
+/* ── Store Chips (show page) ──────────────────────────────────── */
+.md-store-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--md-shape-full);
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface);
+  font-size: 13.5px; font-weight: 500;
+  border: none;
+}
+
+/* ── Stock Variant Table (show page) ─────────────────────────── */
+.md-stock-row { border-bottom: 1px solid var(--md-outline-variant); }
+.md-stock-row:last-child { border-bottom: none; }
+
+/* ── Filter Bar ───────────────────────────────────────────────── */
+.md-filter-bar {
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-shape-lg);
+  border: 1px solid var(--md-outline-variant);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.md-filter-bar .form-control,
+.md-filter-bar .form-select {
+  border-radius: var(--md-shape-xs) !important;
+  border: 1px solid var(--md-outline) !important;
+  background: var(--md-surface) !important;
+  color: var(--md-on-surface) !important;
+  font-size: 13.5px; line-height: 20px; padding: 9px 12px;
+  box-shadow: none !important;
+}
+.md-filter-bar .form-control:focus,
+.md-filter-bar .form-select:focus {
+  border-color: var(--md-primary) !important;
+  border-width: 2px !important;
+  box-shadow: none !important;
+}
+.md-filter-bar label {
+  font-size: 11px; font-weight: 500;
+  letter-spacing: .8px; text-transform: uppercase;
+  color: var(--md-on-surface-variant);
+  margin-bottom: 5px; display: block;
+}
+/* TomSelect within filter bar */
+.md-filter-bar .ts-wrapper .ts-control {
+  border-radius: var(--md-shape-xs) !important;
+  border: 1px solid var(--md-outline) !important;
+  background: var(--md-surface) !important;
+  box-shadow: none !important;
+  font-size: 13.5px;
+}
+.md-filter-bar .ts-wrapper.focus .ts-control {
+  border-color: var(--md-primary) !important;
+  border-width: 2px !important;
+}
+
+/* ── Misc Utilities ───────────────────────────────────────────── */
+.text-md-on-surface-variant { color: var(--md-on-surface-variant); }
+.text-md-primary { color: var(--md-primary); }
+.text-md-error   { color: var(--md-error); }
+.bg-md-surface   { background: var(--md-surface); }
+.md-divider { border: none; border-top: 1px solid var(--md-outline-variant); margin: 16px 0; }
+.md-state-layer-primary:hover { background: rgba(0,106,96,.08); }

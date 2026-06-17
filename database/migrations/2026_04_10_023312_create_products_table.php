@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id();
             $table->unsignedTinyInteger('category_id')->nullable()->index();
             $table->string('parent_sku', 50)->unique();
-            $table->string('variant_sku', 50)->nullable();
             $table->timestamps();
         });
     }
