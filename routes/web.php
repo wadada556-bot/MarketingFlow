@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductAdController;
 use App\Http\Controllers\ProductAdLogController;
 use App\Http\Controllers\ProductController;
@@ -36,3 +37,7 @@ Route::get('/products/suggest', [ProductController::class, 'suggest'])
 Route::resource('products', ProductController::class);
 Route::resource('categories', CategoryController::class);
 Route::resource('stores', StoreController::class);
+
+Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');

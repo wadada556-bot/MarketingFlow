@@ -29,36 +29,49 @@
     <nav style="padding: 12px 12px; flex: 1; overflow-y: auto;">
 
         @php
+            $unreadNotifCount = \App\Models\User::first()?->unreadNotifications()->count() ?? 0;
             $navItems = [
                 [
                     'label'  => 'Dashboard',
                     'icon'   => 'bi-grid-1x2',
                     'active' => request()->is('dashboard*'),
                     'href'   => route('dashboard'),
+                    'badge'  => 0,
                 ],
                 [
                     'label'  => 'Product Ads',
                     'icon'   => 'bi-megaphone',
                     'active' => request()->is('product-ads*'),
                     'href'   => route('product-ads.index'),
+                    'badge'  => 0,
                 ],
                 [
                     'label'  => 'Products',
                     'icon'   => 'bi-box-seam',
                     'active' => request()->is('products*'),
                     'href'   => '/products',
+                    'badge'  => 0,
                 ],
                 [
                     'label'  => 'Categories',
                     'icon'   => 'bi-tags',
                     'active' => request()->is('categories*'),
                     'href'   => '/categories',
+                    'badge'  => 0,
                 ],
                 [
                     'label'  => 'Stores',
                     'icon'   => 'bi-shop',
                     'active' => request()->is('stores*'),
                     'href'   => '/stores',
+                    'badge'  => 0,
+                ],
+                [
+                    'label'  => 'Notifikasi',
+                    'icon'   => 'bi-bell',
+                    'active' => request()->is('notifications*'),
+                    'href'   => route('notifications.index'),
+                    'badge'  => $unreadNotifCount,
                 ],
             ];
         @endphp
@@ -93,6 +106,22 @@
                        flex-shrink: 0;
                    "></i>
                 {{ $item['label'] }}
+                @if(!empty($item['badge']) && $item['badge'] > 0)
+                    <span style="
+                        margin-left: auto;
+                        background: var(--md-error);
+                        color: var(--md-on-error);
+                        font-size: 11px;
+                        font-weight: 600;
+                        min-width: 20px;
+                        height: 20px;
+                        border-radius: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0 5px;
+                    ">{{ $item['badge'] > 99 ? '99+' : $item['badge'] }}</span>
+                @endif
             </a>
         @endforeach
 

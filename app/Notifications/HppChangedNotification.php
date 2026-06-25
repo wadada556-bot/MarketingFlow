@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Notifications\Messages\DatabaseMessage;
 
 class HppChangedNotification extends Notification
 {
@@ -14,7 +15,21 @@ class HppChangedNotification extends Notification
 
     public function via(mixed $notifiable): array
     {
-        return ['mail'];
+        return ['mail', 'database'];
+    }
+
+    public function toArray(mixed $notifiable): array
+    {
+        $cnt = count($this->changes);
+
+        return [
+            'type'    => 'hpp_changed',
+            'title'   => $cnt > 0 ? "⚠️ {$cnt} SKU HPP berubah" : '✅ HPP Sync selesai',
+            'message' => $cnt > 0
+                ? "Total {$cnt} SKU berubah dari {$this->totalSynced} yang dicek."
+                : "Tidak ada perubahan HPP. {$this->totalSynced} SKU dicek.",
+            'changes' => $this->changes,
+        ];
     }
 
     public function toMail(mixed $notifiable): MailMessage

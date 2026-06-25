@@ -62,8 +62,7 @@ class SyncHpp extends Command
 
         $this->info('[HPP Sync] Selesai: ' . count($fresh) . ' SKU di-sync, ' . count($changes) . ' berubah.');
 
-        \Illuminate\Support\Facades\Notification::route('mail', config('mail.to'))
-            ->notify(new HppChangedNotification($changes, count($fresh)));
+        User::first()->notify(new HppChangedNotification($changes, count($fresh)));
         $this->info('[HPP Sync] Notifikasi email terkirim.');
 
         return self::SUCCESS;
