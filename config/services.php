@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'jubelio' => [
+        'email'    => env('EMAIL_JUBELIO'),
+        'password' => env('PASSWORD_JUBELIO'),
+    ],
+
 ];

@@ -1,0 +1,35 @@
+/* TomSelect — MD3 override */
+.ts-wrapper .ts-control {
+    border-radius: var(--md-shape-xs) !important;
+    border: 1px solid var(--md-outline) !important;
+    background: var(--md-surface) !important;
+    box-shadow: none !important;
+    font-size: 13.5px !important;
+    padding: 7px 10px !important;
+}
+.ts-wrapper.focus .ts-control {
+    border-color: var(--md-primary) !important;
+    border-width: 2px !important;
+    box-shadow: none !important;
+}
+.ts-dropdown {
+    border-radius: var(--md-shape-sm) !important;
+    border: 1px solid var(--md-outline-variant) !important;
+    box-shadow: var(--md-elev-2) !important;
+}
+.ts-dropdown .option.active, .ts-dropdown .option:hover {
+    background: var(--md-secondary-container) !important;
+    color: var(--md-on-secondary-container) !important;
+}
+.ts-dropdown .selected {
+    background: var(--md-primary-container) !important;
+    color: var(--md-on-primary-container) !important;
+}
+.ts-wrapper .ts-control .item {
+    background: var(--md-secondary-container) !important;
+    color: var(--md-on-secondary-container) !important;
+    border-radius: var(--md-shape-full) !important;
+    border: none !important;
+    font-size: 12px !important;
+    padding: 2px 8px !important;
+}

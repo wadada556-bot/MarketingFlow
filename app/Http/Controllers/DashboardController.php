@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FilterDateRangeRequest;
 use App\Models\DailyAdStore;
+use App\Models\DailyProductAd;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\DailyStoreStat;
@@ -13,9 +14,11 @@ use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
-    private const QTY_DANGER      = 20;
-    private const QTY_WARNING     = 100;
+    private const QTY_DANGER      = 100;
+    private const QTY_WARNING     = 300;
     private const STOCK_CACHE_TTL = 900;
+    private const AGG_CACHE_TTL      = 300; // cache GMV/pesanan dashboard (5 menit)
+    private const AGG_ROAS_CACHE_TTL = 360; // cache ROAS/ad-spend (stagger agar tidak expire bersamaan)
 
     private const SLUG_MAP = [
         'topi keren'        => 'topi-keren',
@@ -89,43 +92,64 @@ class DashboardController extends Controller
 
         $dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
-        // ── Aggregasi DB: periode ini & periode pembanding ────────────────
-        // SUM langsung di DB: benar meski store_id NULL, atau ada duplikat tanggal
-        $curSums = DailyStoreStat::query()
-            ->whereBetween('tanggal', [$curStart->toDateString(), $curEnd->toDateString()])
-            ->selectRaw('store_id, SUM(gmv) as gmv, SUM(pesanan) as pesanan')
-            ->groupBy('store_id')
-            ->get()
-            ->keyBy('store_id');
+        // ── Aggregasi DB: dua blok cache terpisah dengan TTL berbeda ────────
+        // Cache menyimpan array biasa (scalar) — 100% aman di-serialize; objek/collection
+        // Eloquent tidak round-trip andal lewat serialize(). Direkonstruksi ke stdClass di bawah.
+        // GMV/pesanan dan ROAS dipisah agar tidak spike DB saat expire bersamaan.
+        $dateKey  = $curStart->toDateString() . '_' . $curEnd->toDateString()
+                  . '_' . $prevStart->toDateString() . '_' . $prevEnd->toDateString();
 
-        $prevSums = DailyStoreStat::query()
-            ->whereBetween('tanggal', [$prevStart->toDateString(), $prevEnd->toDateString()])
-            ->selectRaw('store_id, SUM(gmv) as gmv, SUM(pesanan) as pesanan')
-            ->groupBy('store_id')
-            ->get()
-            ->keyBy('store_id');
+        $gmvAgg = Cache::remember(
+            'dashboard_gmv_' . $dateKey,
+            self::AGG_CACHE_TTL,
+            function () use ($curStart, $curEnd, $prevStart, $prevEnd) {
+                $toArr = fn ($q) => $q->get()->map(fn ($m) => $m->getAttributes())->all();
 
-        // ── Aggregasi DB: ad spend & ROAS periode ini & pembanding ───────
-        $curAds = DailyAdStore::query()
-            ->whereBetween('tanggal', [$curStart->toDateString(), $curEnd->toDateString()])
-            ->selectRaw('store_id, SUM(cost) as total_cost, SUM(roi * cost) / NULLIF(SUM(cost), 0) as avg_roas')
-            ->groupBy('store_id')
-            ->get()
-            ->keyBy('store_id');
+                return [
+                    'curSums' => $toArr(DailyStoreStat::query()
+                        ->whereBetween('tanggal', [$curStart->toDateString(), $curEnd->toDateString()])
+                        ->selectRaw('store_id, SUM(gmv) as gmv, SUM(pesanan) as pesanan')
+                        ->groupBy('store_id')),
 
-        $prevAds = DailyAdStore::query()
-            ->whereBetween('tanggal', [$prevStart->toDateString(), $prevEnd->toDateString()])
-            ->selectRaw('store_id, SUM(cost) as total_cost, SUM(roi * cost) / NULLIF(SUM(cost), 0) as avg_roas')
-            ->groupBy('store_id')
-            ->get()
-            ->keyBy('store_id');
+                    'prevSums' => $toArr(DailyStoreStat::query()
+                        ->whereBetween('tanggal', [$prevStart->toDateString(), $prevEnd->toDateString()])
+                        ->selectRaw('store_id, SUM(gmv) as gmv, SUM(pesanan) as pesanan')
+                        ->groupBy('store_id')),
 
-        // ── Chart: data harian untuk periode yang dipilih ────────────────
-        $chartRaw = DailyStoreStat::query()
-            ->whereBetween('tanggal', [$curStart->toDateString(), $curEnd->toDateString()])
-            ->selectRaw('store_id, DATE(tanggal) as d, SUM(gmv) as gmv, SUM(pesanan) as pesanan')
-            ->groupBy('store_id', \DB::raw('DATE(tanggal)'))
-            ->get();
+                    'chartRaw' => $toArr(DailyStoreStat::query()
+                        ->whereBetween('tanggal', [$curStart->toDateString(), $curEnd->toDateString()])
+                        ->selectRaw('store_id, DATE(tanggal) as d, SUM(gmv) as gmv, SUM(pesanan) as pesanan')
+                        ->groupBy('store_id', \DB::raw('DATE(tanggal)'))),
+                ];
+            }
+        );
+
+        $roasAgg = Cache::remember(
+            'dashboard_roas_' . $dateKey,
+            self::AGG_ROAS_CACHE_TTL,
+            function () use ($curStart, $curEnd, $prevStart, $prevEnd) {
+                $toArr = fn ($q) => $q->get()->map(fn ($m) => $m->getAttributes())->all();
+
+                return [
+                    'curAds' => $toArr(DailyAdStore::query()
+                        ->whereBetween('tanggal', [$curStart->toDateString(), $curEnd->toDateString()])
+                        ->selectRaw('store_id, SUM(cost) as total_cost, SUM(roi * cost) / NULLIF(SUM(cost), 0) as avg_roas')
+                        ->groupBy('store_id')),
+
+                    'prevAds' => $toArr(DailyAdStore::query()
+                        ->whereBetween('tanggal', [$prevStart->toDateString(), $prevEnd->toDateString()])
+                        ->selectRaw('store_id, SUM(cost) as total_cost, SUM(roi * cost) / NULLIF(SUM(cost), 0) as avg_roas')
+                        ->groupBy('store_id')),
+                ];
+            }
+        );
+
+        $rebuild  = fn (array $rows) => collect($rows)->map(fn ($a) => (object) $a);
+        $curSums  = $rebuild($gmvAgg['curSums'])->keyBy('store_id');
+        $prevSums = $rebuild($gmvAgg['prevSums'])->keyBy('store_id');
+        $curAds   = $rebuild($roasAgg['curAds'])->keyBy('store_id');
+        $prevAds  = $rebuild($roasAgg['prevAds'])->keyBy('store_id');
+        $chartRaw = $rebuild($gmvAgg['chartRaw']);
 
         $chartIdx        = [];
         $chartPesananIdx = [];
@@ -156,7 +180,12 @@ class DashboardController extends Controller
         $totalOrdP = (int) $prevSums->sum('pesanan');
 
         // ── Per-toko ─────────────────────────────────────────────────────
-        $stores    = Store::all();
+        $stores = collect(
+            Cache::remember('stores_all', 3600,
+                fn() => Store::select('id', 'name')->orderBy('id')
+                    ->get()->map(fn($s) => $s->getAttributes())->all()
+            )
+        )->map(fn($a) => (object) $a);
         $storeInfo = [];
 
         foreach ($stores as $store) {
@@ -382,17 +411,115 @@ class DashboardController extends Controller
         $jsColors      = self::COLORS;
         $currentPeriod = $period;
 
+        // ── Ads Performance per produk ────────────────────────────────────
+        // Status diturunkan dari SQL GROUP BY (MAX priority) — tidak perlu PHP groupBy/map.
+        // Prioritas: active=3 > completed=2 > stopped=1
+        $adStatusMap = collect(
+            Cache::remember('dashboard_ad_status_map', self::AGG_CACHE_TTL, function () {
+                return \DB::table('product_ads as pa')
+                    ->join('product_ad_store as pas', 'pas.product_ad_id', '=', 'pa.id')
+                    ->selectRaw("CONCAT(pa.product_id, '_', pas.store_id) as map_key,
+                        CASE
+                            WHEN MAX(CASE pa.status WHEN 'active' THEN 3 WHEN 'completed' THEN 2 ELSE 1 END) = 3 THEN 'active'
+                            WHEN MAX(CASE pa.status WHEN 'active' THEN 3 WHEN 'completed' THEN 2 ELSE 1 END) = 2 THEN 'completed'
+                            ELSE 'stopped'
+                        END as status")
+                    ->groupBy('pa.product_id', 'pas.store_id')
+                    ->pluck('status', 'map_key')
+                    ->all();
+            })
+        );
+
+        // Agregasi ROAS berat (data batch harian) di-cache sebagai array; status digabung live di bawah.
+        // Limit 50: dashboard hanya menampilkan top items, tidak perlu seluruh produk×toko.
+        $adsRoasArr = Cache::remember(
+            'dashboard_ads_roas_' . $curStart->toDateString() . '_' . $curEnd->toDateString(),
+            self::AGG_CACHE_TTL,
+            fn() => DailyProductAd::query()
+                ->whereBetween('tanggal', [$curStart->toDateString(), $curEnd->toDateString()])
+                ->join('products', 'products.id', '=', 'daily_product_ads.product_id')
+                ->join('stores', 'stores.id', '=', 'daily_product_ads.store_id')
+                ->selectRaw('daily_product_ads.product_id, daily_product_ads.store_id,
+                             products.parent_sku, stores.name as store_name,
+                             AVG(daily_product_ads.roi) as avg_roas')
+                ->groupBy('daily_product_ads.product_id', 'daily_product_ads.store_id',
+                          'products.parent_sku', 'stores.name')
+                ->orderByDesc('avg_roas')
+                ->limit(50)
+                ->get()
+                ->map(fn ($m) => $m->getAttributes())
+                ->all()
+        );
+
+        $adsPerformance = collect($adsRoasArr)
+            ->map(fn ($a) => (object) $a)
+            ->map(function ($row) use ($adStatusMap) {
+                $roas   = $row->avg_roas !== null ? (float) $row->avg_roas : null;
+                $status = $adStatusMap->get($row->product_id . '_' . $row->store_id, 'stopped');
+                return [
+                    'campaign'   => strtoupper($row->parent_sku),
+                    'store_name' => strtoupper($row->store_name),
+                    'roas'       => $roas,
+                    'roas_fmt'   => $roas !== null ? number_format($roas, 1, ',', '.') . 'x' : '–',
+                    'low_roas'   => $roas !== null && $roas < 3,
+                    'status'     => $status,
+                ];
+            })
+            ->all();
+
         // ── Stock Alerts ─────────────────────────────────────────────────
+        // Bagian ini memanggil ERP (lambat). Tidak di-hitung di sini agar dashboard
+        // render instan; diisi lewat AJAX ke dashboard.stock-alerts (lihat view).
+
+        return view('dashboard.index', compact(
+            'jsStores', 'jsDefaultMetrics', 'jsStoreMetrics',
+            'chartDaily', 'chartWeekly', 'chartMetricData', 'chartStoreMetricData',
+            'storeOptions', 'jsColors',
+            'currentPeriod', 'periodLabel',
+            'curStart', 'curEnd', 'dateFrom', 'dateTo',
+            'adsPerformance'
+        ));
+    }
+
+    /**
+     * Endpoint AJAX: hitung Peringatan Stok (ERP) lalu kembalikan HTML kartu + panel.
+     */
+    public function stockAlerts()
+    {
+        $data = $this->buildStockAlerts();
+
+        return response()->json([
+            'card'  => view('dashboard.partials._stock-card-body', $data)->render(),
+            'panel' => view('dashboard.partials._stock-panel', $data)->render(),
+            'count' => $data['stockAlertCount'],
+        ]);
+    }
+
+    /**
+     * Hitung daftar peringatan stok dari ERP (stok + penjualan 30 hari).
+     *
+     * @return array{stockAlerts: array, stockAlertCount: int, stockApiUnavailable: bool}
+     */
+    private function buildStockAlerts(): array
+    {
         $stockAlerts         = [];
         $stockAlertCount     = 0;
         $stockApiUnavailable = false;
 
-        $products = Product::with([
-            'productAds' => fn ($q) => $q->with('stores:id,name'),
-            'category:id,name',
-        ])->whereHas('productAds')->get();
+        $products = Product::query()
+            ->select('id', 'parent_sku', 'category_id')
+            ->with([
+                'productAds:id,product_id',
+                'productAds.stores:id,name',
+                'category:id,name',
+            ])
+            ->whereHas('productAds')
+            ->limit(100)
+            ->get();
 
-        $parentSkus = $products->pluck('parent_sku')->unique()->values()->all();
+        $parentSkus      = $products->pluck('parent_sku')->unique()->values()->all();
+        $prefetchedSales = null;
+        $prefetchedPo    = null;
 
         if (!empty($parentSkus)) {
             $cacheKey = 'dashboard_stock_' . md5(implode(',', $parentSkus));
@@ -401,10 +528,19 @@ class DashboardController extends Controller
             if ($cached !== null) {
                 $stockData = $cached;
             } else {
-                $fetched = $this->erpApiService->getStockByParentSkus($parentSkus);
-                if (!empty($fetched)) {
-                    Cache::put($cacheKey, $fetched, self::STOCK_CACHE_TTL);
-                    $stockData = $fetched;
+                // Fetch stock + sales + PO dalam 1 Http::pool paralel.
+                // Timeout di service (20 detik); jika ERP down, service mengembalikan array kosong.
+                try {
+                    $combined = $this->erpApiService->getStockAndSalesByParentSkus($parentSkus);
+                } catch (\Throwable) {
+                    $combined = ['stock' => [], 'sales' => [], 'po' => []];
+                }
+
+                if (!empty($combined['stock'])) {
+                    Cache::put($cacheKey, $combined['stock'], self::STOCK_CACHE_TTL);
+                    $stockData       = $combined['stock'];
+                    $prefetchedSales = $combined['sales'];
+                    $prefetchedPo    = $combined['po'];
                 } else {
                     $stockApiUnavailable = true;
                     $stockData = [];
@@ -412,6 +548,12 @@ class DashboardController extends Controller
             }
 
             if (!$stockApiUnavailable) {
+                // Bulk HPP lookup sekali untuk semua variant SKU (1 DB query)
+                $allVariantSkus = collect($stockData)
+                    ->flatMap(fn ($variants) => array_column($variants, 'sku'))
+                    ->unique()->values()->all();
+                $hppMap = ErpApiService::getHppMap($allVariantSkus);
+
                 foreach ($products as $product) {
                     $parentSku     = $product->parent_sku;
                     $allVariants   = $stockData[$parentSku] ?? [];
@@ -425,6 +567,7 @@ class DashboardController extends Controller
                         'sku'    => $v['sku'],
                         'qty'    => $v['qty'],
                         'status' => $this->classifyStock($v['qty']),
+                        'hpp'    => $hppMap[$v['sku']] ?? 0,
                     ], $allVariants));
 
                     $alertClassified = array_filter($classified, fn ($v) => $v['status'] !== 'safe');
@@ -468,14 +611,98 @@ class DashboardController extends Controller
 
         $stockAlertCount = count($stockAlerts);
 
-        return view('dashboard.index', compact(
-            'jsStores', 'jsDefaultMetrics', 'jsStoreMetrics',
-            'chartDaily', 'chartWeekly', 'chartMetricData', 'chartStoreMetricData',
-            'storeOptions', 'jsColors',
-            'stockAlerts', 'stockAlertCount', 'stockApiUnavailable',
-            'currentPeriod', 'periodLabel',
-            'curStart', 'curEnd', 'dateFrom', 'dateTo'
-        ));
+        // ── Best Seller badge: 90-day TikTok sales per alert product ─────
+        foreach ($stockAlerts as &$_a) {
+            $_a['is_best_seller']     = false;
+            $_a['has_urgent_variant'] = false;
+            $_a['sales_90d']          = 0;
+        }
+        unset($_a);
+
+        if (!$stockApiUnavailable && !empty($stockAlerts)) {
+            $alertSkus     = array_column($stockAlerts, 'parent_sku');
+            $salesCacheKey = 'dashboard_tiktok_variant_sales_' . md5(implode(',', $alertSkus));
+
+            if ($prefetchedSales !== null) {
+                // Sudah di-fetch bersamaan dengan stock — tidak perlu ERP call kedua
+                $salesData = array_intersect_key($prefetchedSales, array_flip($alertSkus));
+                Cache::put($salesCacheKey, $salesData, 1800);
+            } else {
+                $salesData = Cache::remember($salesCacheKey, 1800, function () use ($alertSkus) {
+                    try {
+                        return $this->erpApiService->getVariantSalesByParentSkus($alertSkus);
+                    } catch (\Throwable) {
+                        return [];
+                    }
+                });
+            }
+
+            // ── PO data ──────────────────────────────────────────────────
+            $poCacheKey = 'dashboard_po_' . md5(implode(',', $alertSkus));
+            if ($prefetchedPo !== null) {
+                $poData = array_intersect_key($prefetchedPo, array_flip($alertSkus));
+                Cache::put($poCacheKey, $poData, self::STOCK_CACHE_TTL);
+            } else {
+                $poData = Cache::get($poCacheKey, []);
+            }
+
+            foreach ($stockAlerts as &$_a) {
+                $skuSales90d     = $salesData[$_a['parent_sku']]['90d'] ?? [];
+                $_a['sales_90d'] = array_sum($skuSales90d);
+
+                // Rank top-3 variants by 90d sales
+                $sorted = collect($skuSales90d)->filter(fn ($v) => $v > 0)->sortDesc();
+                $rank1  = $sorted->keys()->get(0);
+                $rank2  = $sorted->keys()->get(1);
+                $rank3  = $sorted->keys()->get(2);
+
+                $variantPoMap = $poData[$_a['parent_sku']] ?? [];
+
+                $_a['variants'] = array_map(function ($v) use ($rank1, $rank2, $rank3, $variantPoMap) {
+                    $v['rank_90d'] = match (true) {
+                        $v['sku'] === $rank1 => 1,
+                        $v['sku'] === $rank2 => 2,
+                        $v['sku'] === $rank3 => 3,
+                        default              => null,
+                    };
+                    $v['po_qty'] = $variantPoMap[$v['sku']] ?? null;
+                    return $v;
+                }, $_a['variants']);
+
+                // URGENT only when a top-ranked variant itself is low/critical stock
+                $_a['has_urgent_variant'] = !empty(array_filter(
+                    $_a['variants'],
+                    fn ($v) => ($v['rank_90d'] ?? null) !== null
+                ));
+            }
+            unset($_a);
+
+            // ★ Best Seller badge: product has meaningful 90d sales (2+ products needed)
+            $withSales = array_filter($stockAlerts, fn ($a) => $a['sales_90d'] > 0);
+            if (count($withSales) >= 2) {
+                foreach ($stockAlerts as &$_a) {
+                    $_a['is_best_seller'] = $_a['sales_90d'] > 0;
+                }
+                unset($_a);
+            }
+
+            // Sort: urgent (top-variant low stock) first → danger → warning
+            usort($stockAlerts, function ($a, $b) {
+                if ($a['has_urgent_variant'] !== $b['has_urgent_variant']) {
+                    return $a['has_urgent_variant'] ? -1 : 1;
+                }
+                if ($a['status'] !== $b['status']) {
+                    return $a['status'] === 'danger' ? -1 : 1;
+                }
+                return 0;
+            });
+        }
+
+        return [
+            'stockAlerts'         => $stockAlerts,
+            'stockAlertCount'     => $stockAlertCount,
+            'stockApiUnavailable' => $stockApiUnavailable,
+        ];
     }
 
     private function classifyStock(int $qty): string

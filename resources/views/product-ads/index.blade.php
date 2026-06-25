@@ -4,54 +4,7 @@
 
 @push('styles')
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
-    <style>
-        /* Override TomSelect to match MD3 */
-        .ts-wrapper .ts-control {
-            border-radius: var(--md-shape-xs) !important;
-            border: 1px solid var(--md-outline) !important;
-            background: var(--md-surface) !important;
-            box-shadow: none !important;
-            font-size: 13.5px !important;
-            padding: 7px 10px !important;
-        }
-        .ts-wrapper.focus .ts-control {
-            border-color: var(--md-primary) !important;
-            border-width: 2px !important;
-            box-shadow: none !important;
-        }
-        .ts-dropdown {
-            border-radius: var(--md-shape-sm) !important;
-            border: 1px solid var(--md-outline-variant) !important;
-            box-shadow: var(--md-elev-2) !important;
-        }
-        .ts-dropdown .option.active, .ts-dropdown .option:hover {
-            background: var(--md-secondary-container) !important;
-            color: var(--md-on-secondary-container) !important;
-        }
-        .ts-dropdown .selected {
-            background: var(--md-primary-container) !important;
-            color: var(--md-on-primary-container) !important;
-        }
-        .ts-wrapper .ts-control .item {
-            background: var(--md-secondary-container) !important;
-            color: var(--md-on-secondary-container) !important;
-            border-radius: var(--md-shape-full) !important;
-            border: none !important;
-            font-size: 12px !important;
-            padding: 2px 8px !important;
-        }
-        /* Pagination */
-        .pagination .page-link {
-            color: var(--md-primary);
-            border-radius: var(--md-shape-xs);
-            margin: 0 2px;
-            font-size: 13px;
-        }
-        .pagination .page-item.active .page-link {
-            background: var(--md-primary);
-            border-color: var(--md-primary);
-        }
-    </style>
+    <link href="{{ asset('css/tomselect-md3.css') }}" rel="stylesheet">
 @endpush
 
 @section('content')

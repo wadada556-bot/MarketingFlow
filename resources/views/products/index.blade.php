@@ -70,6 +70,92 @@
                     document.getElementById('formBulkDelete').submit();
                 });
             }
+
+            // ── Autocomplete ──────────────────────────────────────────────
+            const searchInput  = document.getElementById('productSearch');
+            const suggestionEl = document.getElementById('searchSuggestions');
+            const suggestUrl   = '{{ route('products.suggest') }}';
+            let debounceTimer  = null;
+            let activeIndex    = -1;
+
+            function renderSuggestions(items) {
+                suggestionEl.innerHTML = '';
+                activeIndex = -1;
+
+                if (!items.length) { suggestionEl.style.display = 'none'; return; }
+
+                items.forEach((item, i) => {
+                    const li = document.createElement('li');
+                    li.dataset.index = i;
+                    li.style.cssText = 'padding:8px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px;color:var(--md-on-surface)';
+                    li.innerHTML = `<span>${item.sku}</span>
+                        <span style="font-size:12px;color:var(--md-on-surface-variant);flex-shrink:0">${item.category}</span>`;
+
+                    li.addEventListener('mouseenter', () => setActive(i));
+                    li.addEventListener('mouseleave', () => clearActive());
+                    li.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        searchInput.value = item.sku;
+                        document.getElementById('searchForm').submit();
+                    });
+
+                    suggestionEl.appendChild(li);
+                });
+
+                suggestionEl.style.display = 'block';
+            }
+
+            function setActive(index) {
+                const items = suggestionEl.querySelectorAll('li');
+                items.forEach(el => el.style.background = '');
+                activeIndex = index;
+                if (items[index]) items[index].style.background = 'var(--md-surface-container-low)';
+            }
+
+            function clearActive() {
+                const items = suggestionEl.querySelectorAll('li');
+                items.forEach(el => el.style.background = '');
+                activeIndex = -1;
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    clearTimeout(debounceTimer);
+                    const q = this.value.trim();
+                    if (!q) { suggestionEl.style.display = 'none'; return; }
+
+                    debounceTimer = setTimeout(() => {
+                        fetch(`${suggestUrl}?q=${encodeURIComponent(q)}`)
+                            .then(r => r.json())
+                            .then(renderSuggestions);
+                    }, 250);
+                });
+
+                searchInput.addEventListener('keydown', function (e) {
+                    const items = suggestionEl.querySelectorAll('li');
+                    if (!items.length || suggestionEl.style.display === 'none') return;
+
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setActive(Math.min(activeIndex + 1, items.length - 1));
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setActive(Math.max(activeIndex - 1, 0));
+                    } else if (e.key === 'Enter' && activeIndex >= 0) {
+                        e.preventDefault();
+                        searchInput.value = items[activeIndex].querySelector('span').textContent;
+                        document.getElementById('searchForm').submit();
+                    } else if (e.key === 'Escape') {
+                        suggestionEl.style.display = 'none';
+                    }
+                });
+
+                document.addEventListener('click', function (e) {
+                    if (!searchInput.contains(e.target) && !suggestionEl.contains(e.target)) {
+                        suggestionEl.style.display = 'none';
+                    }
+                });
+            }
         });
     </script>
 @endpush
@@ -99,11 +185,52 @@
 
     @include('components.alert')
 
+    <form method="GET" action="{{ route('products.index') }}" class="mb-3" id="searchForm" autocomplete="off">
+        <div style="position:relative;max-width:360px">
+            <div class="input-group">
+                <span class="input-group-text"
+                      style="background:var(--md-surface);border-color:var(--md-outline);border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs)">
+                    <i class="bi bi-search" style="color:var(--md-on-surface-variant);font-size:14px"></i>
+                </span>
+                <input type="text" name="search" id="productSearch"
+                       value="{{ $search ?? '' }}"
+                       class="form-control"
+                       placeholder="Cari SKU atau kategori…"
+                       style="border-color:var(--md-outline);font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
+                @if(!empty($search))
+                    <a href="{{ route('products.index') }}"
+                       class="input-group-text"
+                       style="background:var(--md-surface);border-color:var(--md-outline);border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;color:var(--md-on-surface-variant);text-decoration:none"
+                       title="Hapus pencarian">
+                        <i class="bi bi-x-lg" style="font-size:12px"></i>
+                    </a>
+                @endif
+            </div>
+
+            {{-- Autocomplete dropdown --}}
+            <ul id="searchSuggestions"
+                style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1055;
+                       list-style:none;margin:4px 0 0;padding:4px 0;
+                       background:var(--md-surface);
+                       border:1px solid var(--md-outline-variant);
+                       border-radius:var(--md-shape-sm);
+                       box-shadow:var(--md-elev-2);
+                       max-height:260px;overflow-y:auto">
+            </ul>
+        </div>
+    </form>
+
     @if($products->isEmpty())
         <div class="md-card text-center py-5 px-4" style="border-style:dashed">
             <i class="bi bi-inbox d-block mb-3" style="font-size:2.8rem;color:var(--md-outline)"></i>
             <p class="mb-1" style="font-size:16px;font-weight:500;color:var(--md-on-surface)">Tidak Ada Data</p>
-            <p class="mb-0" style="font-size:14px;color:var(--md-on-surface-variant)">Coba sesuaikan filter atau tambahkan produk baru.</p>
+            <p class="mb-0" style="font-size:14px;color:var(--md-on-surface-variant)">
+                @if(!empty($search))
+                    Tidak ada produk yang cocok dengan "<strong>{{ $search }}</strong>".
+                @else
+                    Coba sesuaikan filter atau tambahkan produk baru.
+                @endif
+            </p>
         </div>
     @else
         <form id="formBulkDelete" action="{{ route('products.bulk-destroy') }}" method="POST">

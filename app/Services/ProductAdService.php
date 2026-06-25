@@ -99,12 +99,10 @@ class ProductAdService
     public function bulkDeleteProductAds(array $ids): void
     {
         DB::transaction(function () use ($ids) {
-            $productAds = ProductAd::whereIn('id', $ids)->get();
-            
-            foreach ($productAds as $productAd) {
-                $productAd->stores()->detach();
-                $productAd->delete();
-            }
+            // Hapus baris pivot eksplisit (setara detach), lalu hapus iklan.
+            // product_ad_logs ikut terhapus via cascadeOnDelete pada FK.
+            DB::table('product_ad_store')->whereIn('product_ad_id', $ids)->delete();
+            ProductAd::whereIn('id', $ids)->delete();
         });
     }
 }

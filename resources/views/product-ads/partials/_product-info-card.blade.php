@@ -1,19 +1,3 @@
-@php
-    // $stockVariants is passed from the controller via ErpApiService (already summed per SKU)
-    // Shape: [['sku' => '...', 'qty' => int], ...]
-    $stockVariants = collect($stockVariants ?? []);
-    $totalStock    = $stockVariants->sum('qty');
-
-    $stockChipClass = function (int $qty): string {
-        if ($qty <= 20)  return 'error';
-        if ($qty <= 100) return 'warning';
-        return 'primary';
-    };
-
-    $worstChipClass = $stockVariants->isEmpty() ? 'primary'
-        : $stockChipClass($stockVariants->min('qty'));
-@endphp
-
 <div class="md-card mb-4" style="overflow:hidden">
 
     {{-- Card header --}}
@@ -72,29 +56,19 @@
 
         <hr class="md-divider">
 
-        {{-- ── Stok Varian ──────────────────────────────────── --}}
-        <div class="mt-4">
+        {{-- ── Stok & Penjualan Varian (di-load lazy via AJAX) ── --}}
+        <div class="mt-4" id="variant-stock-lazy"
+             data-url="{{ route('product-ads.stock-detail', $productAd->id) }}">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <p class="mb-0" style="font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--md-on-surface-variant)">
-                    <i class="bi bi-layers me-1"></i> Stok Varian
+                    <i class="bi bi-layers me-1"></i> Stok & Penjualan Varian
                 </p>
-                <span class="md-chip {{ $worstChipClass }}">Total: {{ number_format($totalStock) }}</span>
+                <span class="erp-spinner"></span>
             </div>
-
-            @forelse($stockVariants as $variant)
-                @php $qty = (int) $variant['qty']; @endphp
-                <div class="md-stock-row d-flex justify-content-between align-items-center py-2">
-                    <span style="font-size:13px;font-family:monospace;color:var(--md-on-surface)">{{ $variant['sku'] }}</span>
-                    <span class="md-chip {{ $stockChipClass($qty) }}" style="font-size:12px">
-                        {{ number_format($qty) }}
-                    </span>
-                </div>
-            @empty
-                <div style="text-align:center;padding:24px;background:var(--md-surface-container-low);border-radius:var(--md-shape-md)">
-                    <i class="bi bi-box d-block mb-2" style="font-size:1.6rem;color:var(--md-outline)"></i>
-                    <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">Tidak ada data stok dari ERP</p>
-                </div>
-            @endforelse
+            <div style="text-align:center;padding:28px 16px;background:var(--md-surface-container-low);border-radius:var(--md-shape-md)">
+                <span class="erp-spinner" style="width:20px;height:20px;border-width:3px"></span>
+                <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant);margin-top:10px">Memuat stok &amp; penjualan…</p>
+            </div>
         </div>
 
     </div>

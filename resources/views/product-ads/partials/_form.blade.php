@@ -1,3 +1,6 @@
+{{-- Hidden: current ad id (for duplicate check exclusion on edit) --}}
+<input type="hidden" id="current_ad_id" value="{{ $productAd->id ?? '' }}">
+
 {{-- ── Product ─────────────────────────────────────────────────── --}}
 <div class="md-field">
     <label for="product_id">Produk <span style="color:var(--md-error)">*</span></label>
@@ -18,34 +21,74 @@
     @enderror
 </div>
 
-{{-- ── Status + Testing Status ─────────────────────────────────── --}}
+{{-- ── Status Iklan + Status Testing (chip radio terpisah) ─────── --}}
+@php
+    $statusOptions = [
+        ['value' => 'active',    'label' => 'Aktif',      'cls' => 'si-active'],
+        ['value' => 'stopped',   'label' => 'Dihentikan', 'cls' => 'si-stopped'],
+        ['value' => 'completed', 'label' => 'Selesai',    'cls' => 'si-completed'],
+    ];
+    $testingOptions = [
+        ['value' => 'testing', 'label' => 'Testing',  'cls' => 'ts-testing'],
+        ['value' => 'success', 'label' => 'Berhasil', 'cls' => 'ts-success'],
+        ['value' => 'fail',    'label' => 'Gagal',    'cls' => 'ts-fail'],
+        ['value' => '',        'label' => 'Kosong',   'cls' => 'ts-none'],
+    ];
+
+    $isNew      = !($productAd->id ?? null);
+    $curStatus  = old('status')         ?? ($productAd->status         ?? ($isNew ? 'active'   : ''));
+    $curTesting = old('testing_status') ?? ($productAd->testing_status ?? ($isNew ? 'testing'  : ''));
+@endphp
+
 <div class="row g-3">
-    <div class="col-6">
+    <div class="col-12 col-sm-6">
         <div class="md-field mb-0">
-            <label for="status">Status Iklan <span style="color:var(--md-error)">*</span></label>
-            @php $curStatus = old('status') ?? $productAd->status ?? ''; @endphp
-            <select class="form-select @error('status') is-invalid @enderror"
-                    id="status" name="status" required>
-                <option value="" selected disabled>— Pilih —</option>
-                <option value="active"    {{ $curStatus == 'active'    ? 'selected' : '' }}>Aktif</option>
-                <option value="stopped"   {{ $curStatus == 'stopped'   ? 'selected' : '' }}>Dihentikan</option>
-                <option value="completed" {{ $curStatus == 'completed' ? 'selected' : '' }}>Selesai</option>
-            </select>
-            @error('status') <div class="invalid-feedback">{{ $message }}</div> @enderror
+            <p class="md-field-label" style="display:block;font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--md-on-surface-variant);margin-bottom:10px">
+                Status Iklan <span style="color:var(--md-error)">*</span>
+            </p>
+            <input type="hidden" name="status" id="hidden_status" value="{{ $curStatus }}">
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+                @foreach($statusOptions as $opt)
+                <button type="button"
+                        class="status-radio-chip {{ $opt['cls'] }} {{ $curStatus === $opt['value'] ? 'active' : '' }}"
+                        data-group="status"
+                        data-value="{{ $opt['value'] }}"
+                        data-target="hidden_status"
+                        onclick="selectRadioChip(this)">
+                    {{ $opt['label'] }}
+                </button>
+                @endforeach
+            </div>
+            @error('status')
+                <p style="font-size:12px;color:var(--md-error);margin-top:6px;margin-bottom:0">
+                    <i class="bi bi-exclamation-circle me-1"></i>{{ $message }}
+                </p>
+            @enderror
         </div>
     </div>
-    <div class="col-6">
+    <div class="col-12 col-sm-6">
         <div class="md-field mb-0">
-            <label for="testing_status">Status Testing</label>
-            @php $curTesting = old('testing_status') ?? $productAd->testing_status ?? ''; @endphp
-            <select class="form-select @error('testing_status') is-invalid @enderror"
-                    id="testing_status" name="testing_status">
-                <option value="" selected disabled>— Pilih —</option>
-                <option value="testing" {{ $curTesting == 'testing' ? 'selected' : '' }}>Testing</option>
-                <option value="success" {{ $curTesting == 'success' ? 'selected' : '' }}>Berhasil</option>
-                <option value="fail"    {{ $curTesting == 'fail'    ? 'selected' : '' }}>Gagal</option>
-            </select>
-            @error('testing_status') <div class="invalid-feedback">{{ $message }}</div> @enderror
+            <p class="md-field-label" style="display:block;font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--md-on-surface-variant);margin-bottom:10px">
+                Status Testing
+            </p>
+            <input type="hidden" name="testing_status" id="hidden_testing" value="{{ $curTesting }}">
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+                @foreach($testingOptions as $opt)
+                <button type="button"
+                        class="status-radio-chip {{ $opt['cls'] }} {{ $curTesting === $opt['value'] ? 'active' : '' }}"
+                        data-group="testing"
+                        data-value="{{ $opt['value'] }}"
+                        data-target="hidden_testing"
+                        onclick="selectRadioChip(this)">
+                    {{ $opt['label'] }}
+                </button>
+                @endforeach
+            </div>
+            @error('testing_status')
+                <p style="font-size:12px;color:var(--md-error);margin-top:6px;margin-bottom:0">
+                    <i class="bi bi-exclamation-circle me-1"></i>{{ $message }}
+                </p>
+            @enderror
         </div>
     </div>
 </div>
@@ -73,6 +116,13 @@
                autocomplete="off"
                style="border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0 !important;border:1px solid var(--md-outline) !important;border-left:none !important">
         @error('testing_dates') <div class="invalid-feedback">{{ $message }}</div> @enderror
+    </div>
+    {{-- Date presets --}}
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <span style="font-size:11px;color:var(--md-on-surface-variant)">Cepat:</span>
+        @foreach([3, 5, 7, 14, 30] as $days)
+            <button type="button" class="date-preset-btn" onclick="setDatePreset({{ $days }})">{{ $days }} Hari</button>
+        @endforeach
     </div>
 </div>
 
@@ -115,6 +165,18 @@
     @enderror
 </div>
 
+{{-- ── Duplicate Warning ────────────────────────────────────────── --}}
+<div id="duplicate-warning"
+     style="display:none;margin-top:16px;padding:10px 14px;
+            background:var(--md-warning-container);
+            border-radius:var(--md-shape-xs);
+            border-left:3px solid var(--md-warning)">
+    <p style="margin:0;font-size:13px;color:var(--md-on-warning-container)">
+        <i class="bi bi-exclamation-triangle-fill me-2" style="color:var(--md-warning)"></i>
+        <span id="duplicate-warning-text"></span>
+    </p>
+</div>
+
 @push('styles')
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
@@ -129,43 +191,160 @@
             background: var(--md-primary-container) !important;
             box-shadow: none !important;
         }
+        /* ── Status radio chips ── */
+        .status-radio-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1.5px solid var(--md-outline-variant);
+            background: var(--md-surface-container-low);
+            color: var(--md-on-surface-variant);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .15s, border-color .15s, color .15s;
+        }
+        .status-radio-chip:hover:not(.active) {
+            background: var(--md-surface-container);
+            border-color: var(--md-outline);
+        }
+        /* Status Iklan */
+        .status-radio-chip.si-active.active    { background: var(--md-primary-container); color: var(--md-on-primary-container); border-color: var(--md-primary); }
+        .status-radio-chip.si-stopped.active   { background: var(--md-surface-container-high); color: var(--md-on-surface); border-color: var(--md-outline); }
+        .status-radio-chip.si-completed.active { background: var(--md-secondary-container, #e8def8); color: var(--md-on-secondary-container, #1d192b); border-color: var(--md-secondary, #6750a4); }
+        /* Status Testing */
+        .status-radio-chip.ts-testing.active { background: var(--md-primary-container); color: var(--md-on-primary-container); border-color: var(--md-primary); }
+        .status-radio-chip.ts-success.active { background: rgba(29,158,117,.15); color: #156e52; border-color: #1D9E75; }
+        .status-radio-chip.ts-fail.active    { background: var(--md-error-container); color: var(--md-on-error-container); border-color: var(--md-error); }
+        .status-radio-chip.ts-none.active    { background: var(--md-surface-container-high); color: var(--md-on-surface-variant); border-color: var(--md-outline); }
+        /* ── Date preset buttons ── */
+        .date-preset-btn {
+            font-size: 12px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--md-outline-variant);
+            background: var(--md-surface-container-low);
+            color: var(--md-on-surface-variant);
+            cursor: pointer;
+            transition: background .15s, border-color .15s, color .15s;
+        }
+        .date-preset-btn:hover {
+            background: var(--md-primary-container);
+            color: var(--md-on-primary-container);
+            border-color: var(--md-primary);
+        }
     </style>
 @endpush
 
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        /* ── Flatpickr date range ── */
-        flatpickr('#testing_dates', {
-            mode: 'range',
-            enableTime: true,
-            time_24hr: true,
-            dateFormat: 'Y-m-d H:i',
-            allowInput: false,
-            disableMobile: true,
-            onValueUpdate: function(selectedDates, dateStr, instance) {
-                if (selectedDates.length === 2) {
-                    const h = parseInt(instance.hourElement.value, 10);
-                    const m = parseInt(instance.minuteElement.value, 10);
-                    selectedDates[0].setHours(h, m, 0, 0);
-                    selectedDates[1].setHours(h, m, 0, 0);
-                    instance.setDate(selectedDates, false);
+    (function () {
+        var fp;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            /* ── Flatpickr date range ── */
+            fp = flatpickr('#testing_dates', {
+                mode: 'range',
+                enableTime: true,
+                time_24hr: true,
+                dateFormat: 'Y-m-d H:i',
+                allowInput: false,
+                disableMobile: true,
+                onValueUpdate: function (selectedDates, dateStr, instance) {
+                    if (selectedDates.length === 2) {
+                        var h = parseInt(instance.hourElement.value, 10);
+                        var m = parseInt(instance.minuteElement.value, 10);
+                        selectedDates[0].setHours(h, m, 0, 0);
+                        selectedDates[1].setHours(h, m, 0, 0);
+                        instance.setDate(selectedDates, false);
+                    }
                 }
+            });
+
+            /* ── Store chips toggle + trigger duplicate check ── */
+            document.querySelectorAll('.md-choice-chip').forEach(function (label) {
+                var input = label.querySelector('input[type="checkbox"]');
+                if (!input) return;
+                label.addEventListener('click', function () {
+                    setTimeout(function () {
+                        label.classList.toggle('checked', input.checked);
+                        scheduleDuplicateCheck();
+                    }, 0);
+                });
+            });
+
+            /* ── Product change → duplicate check ── */
+            var productSelect = document.getElementById('product_id');
+            if (productSelect) {
+                productSelect.addEventListener('change', scheduleDuplicateCheck);
             }
         });
 
-        /* ── Choice chips toggle ── */
-        document.querySelectorAll('.md-choice-chip').forEach(function (label) {
-            var input = label.querySelector('input[type="checkbox"]');
-            if (!input) return;
-            label.addEventListener('click', function () {
-                /* let default label↔input binding run first */
-                setTimeout(function () {
-                    label.classList.toggle('checked', input.checked);
-                }, 0);
+        /* ── Status radio chips: select one per group, update hidden input ── */
+        window.selectRadioChip = function (btn) {
+            var group = btn.dataset.group;
+            document.querySelectorAll('.status-radio-chip[data-group="' + group + '"]').forEach(function (c) {
+                c.classList.remove('active');
             });
-        });
-    });
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.target).value = btn.dataset.value;
+        };
+
+        /* ── Date presets ── */
+        window.setDatePreset = function (days) {
+            if (!fp) return;
+            var today = new Date();
+            today.setHours(0, 0, 0, 0);
+            var end = new Date(today);
+            end.setDate(today.getDate() + days - 1);
+            fp.setDate([today, end]);
+        };
+
+        /* ── Duplicate check (debounced 300ms) ── */
+        var dupTimer = null;
+        function scheduleDuplicateCheck() {
+            clearTimeout(dupTimer);
+            dupTimer = setTimeout(doDuplicateCheck, 300);
+        }
+
+        function doDuplicateCheck() {
+            var productSelect = document.getElementById('product_id');
+            var pid = productSelect ? productSelect.value : '';
+            var storeIds = [];
+            document.querySelectorAll('#storeChipsContainer input[type=checkbox]:checked').forEach(function (cb) {
+                storeIds.push(cb.value);
+            });
+            var excludeIdEl = document.getElementById('current_ad_id');
+            var excludeId = excludeIdEl ? excludeIdEl.value : '';
+            var warn = document.getElementById('duplicate-warning');
+
+            if (!pid || storeIds.length === 0) {
+                warn.style.display = 'none';
+                return;
+            }
+
+            var params = new URLSearchParams();
+            params.append('product_id', pid);
+            storeIds.forEach(function (id) { params.append('store_ids[]', id); });
+            if (excludeId) params.append('exclude_id', excludeId);
+
+            fetch('/product-ads/check-duplicate?' + params.toString(), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.duplicates && data.duplicates.length > 0) {
+                    document.getElementById('duplicate-warning-text').textContent =
+                        'Produk ini sudah punya iklan aktif di: ' + data.duplicates.join(', ');
+                    warn.style.display = 'block';
+                } else {
+                    warn.style.display = 'none';
+                }
+            })
+            .catch(function () { warn.style.display = 'none'; });
+        }
+    })();
     </script>
 @endpush

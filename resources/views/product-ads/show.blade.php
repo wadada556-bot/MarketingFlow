@@ -4,10 +4,44 @@
 
 @push('styles')
     <link href="{{ asset('css/timeline.css') }}" rel="stylesheet">
+    <style>
+        @keyframes erp-spin { to { transform: rotate(360deg); } }
+        .erp-spinner {
+            display:inline-block; width:14px; height:14px;
+            border:2px solid var(--md-outline-variant);
+            border-top-color:var(--md-primary);
+            border-radius:50%;
+            animation:erp-spin .7s linear infinite;
+            vertical-align:middle;
+        }
+    </style>
 @endpush
 
 @push('scripts')
     <script src="{{ asset('js/product-ads.js') }}?v={{ filemtime(public_path('js/product-ads.js')) }}"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var box = document.getElementById('variant-stock-lazy');
+        if (!box || !box.dataset.url) return;
+
+        var stockAbortCtrl = new AbortController();
+        var stockTimeout   = setTimeout(function () { stockAbortCtrl.abort(); }, 10000);
+
+        fetch(box.dataset.url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: stockAbortCtrl.signal })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (data) {
+                clearTimeout(stockTimeout);
+                box.innerHTML = data.html;
+            })
+            .catch(function () {
+                clearTimeout(stockTimeout);
+                box.innerHTML =
+                    '<div style="text-align:center;padding:24px;background:var(--md-surface-container-low);border-radius:var(--md-shape-md)">' +
+                    '<i class="bi bi-wifi-off d-block mb-2" style="font-size:1.6rem;color:var(--md-outline)"></i>' +
+                    '<p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">Data ERP tidak tersedia</p></div>';
+            });
+    });
+    </script>
 @endpush
 
 @section('content')
@@ -42,7 +76,6 @@
                 'status_testing'        => $productAd->status_testing,
                 'testing_started_at'    => $productAd->testing_started_at,
                 'testing_completed_at'  => $productAd->testing_completed_at,
-                'stockVariants'         => $stockVariants,
             ])
             @include('product-ads.partials._stores-card', ['stores' => $productAd->stores])
         </div>

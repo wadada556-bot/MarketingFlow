@@ -1,5 +1,5 @@
 <div class="md-filter-bar">
-    <form action="{{ route('product-ads.index') }}" method="GET">
+    <form id="filterForm" action="{{ route('product-ads.index') }}" method="GET">
 
         @if(request()->has('testing_status'))
             <input type="hidden" name="testing_status" value="{{ request('testing_status') }}">
@@ -58,9 +58,6 @@
             </div>
 
             <div class="col-12 col-md-auto d-flex gap-2 ms-md-auto">
-                <button type="submit" class="btn-md-filled" style="padding:9px 20px">
-                    <i class="bi bi-funnel"></i> Filter
-                </button>
                 <a href="{{ route('product-ads.index', request()->has('testing_status') ? ['testing_status' => request('testing_status')] : []) }}"
                    class="btn-md-outlined" style="padding:9px 20px">
                     Reset
