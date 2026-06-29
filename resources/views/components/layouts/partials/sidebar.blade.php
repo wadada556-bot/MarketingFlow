@@ -67,6 +67,13 @@
                     'badge'  => 0,
                 ],
                 [
+                    'label'  => 'History Penjualan',
+                    'icon'   => 'bi-clock-history',
+                    'active' => request()->is('sales-history*'),
+                    'href'   => route('sales-history.index'),
+                    'badge'  => 0,
+                ],
+                [
                     'label'  => 'Notifikasi',
                     'icon'   => 'bi-bell',
                     'active' => request()->is('notifications*'),

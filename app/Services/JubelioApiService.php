@@ -11,6 +11,99 @@ class JubelioApiService
     private const INV_URL   = 'https://open.jubelio.com/core-api/inventory/v2/';
     private const PAGE_SIZE = 100;
 
+    // Endpoint Sales (dipakai fitur History Penjualan)
+    private const SALES_LIST_URL   = 'https://open.jubelio.com/core-api/sales/v2/orders/';
+    private const SALES_DETAIL_URL = 'https://open.jubelio.com/core-api/sales/orders/';
+
+    /**
+     * Login sekali, lalu pakai token-nya untuk banyak panggilan (list + detail).
+     */
+    public function getToken(): string
+    {
+        return $this->login();
+    }
+
+    /**
+     * Ambil satu halaman daftar order (header saja) dengan filter channel + status + tanggal.
+     *
+     * @param  array<int>  $channelIds        mis. [128, 131076]
+     * @param  string      $fromIsoUtc        ISO UTC, mis. '2025-12-31T17:00:00.000Z'
+     * @param  string      $toIsoUtc          ISO UTC
+     * @return array{data: array, totalCount: int}
+     */
+    public function getSalesOrdersPage(string $token, array $channelIds, string $fromIsoUtc, string $toIsoUtc, int $page, int $pageSize = self::PAGE_SIZE): array
+    {
+        $query = [
+            'q'                     => '',
+            'page'                  => $page,
+            'page_size'             => $pageSize,
+            'channel_ids'           => array_values($channelIds),
+            'sku_filter'            => 'false',
+            'wms_status_type'       => ['COMPLETED'],
+            'transaction_date_from' => $fromIsoUtc,
+            'transaction_date_to'   => $toIsoUtc,
+            'sort_by'               => 'transaction_date',
+            'sort_direction'        => 'DESC',
+        ];
+
+        $body = $this->getWithRetry($token, self::SALES_LIST_URL, $query);
+
+        return [
+            'data'       => $body['data'] ?? [],
+            'totalCount' => (int) ($body['totalCount'] ?? 0),
+        ];
+    }
+
+    /**
+     * Ambil detail satu order (termasuk array items / SKU).
+     *
+     * @return array  full order; items ada di key 'items'
+     */
+    public function getOrderDetail(string $token, int $salesorderId): array
+    {
+        return $this->getWithRetry($token, self::SALES_DETAIL_URL . $salesorderId);
+    }
+
+    /**
+     * GET dengan retry + backoff. Khusus HTTP 429 (rate-limit Jubelio yang ketat)
+     * pakai jeda lebih panjang & bertingkat.
+     *
+     * @param  array<string, mixed>  $query
+     */
+    private function getWithRetry(string $token, string $url, array $query = []): array
+    {
+        $attempts      = 5;
+        $lastException = null;
+
+        for ($i = 0; $i < $attempts; $i++) {
+            try {
+                $response = Http::withoutVerifying()->timeout(90)
+                    ->withHeaders([
+                        'Authorization' => $token,
+                        'accept'        => 'application/json',
+                    ])
+                    ->get($url, $query);
+
+                if ($response->status() === 429) {
+                    $wait = 15 * ($i + 1); // 15s, 30s, 45s, ...
+                    Log::warning("[Jubelio] 429 rate-limit di {$url}, tunggu {$wait}s (percobaan {$i})");
+                    sleep($wait);
+                    continue;
+                }
+
+                $response->throw();
+
+                return $response->json() ?? [];
+            } catch (\Throwable $e) {
+                $lastException = $e;
+                Log::warning("[Jubelio] Retry {$i}/{$attempts} GET {$url}: {$e->getMessage()}");
+                sleep(5 * ($i + 1)); // backoff non-429: 5s, 10s, ...
+            }
+        }
+
+        throw $lastException ?? new \RuntimeException("[Jubelio] Gagal GET {$url} setelah {$attempts} percobaan (429 terus).");
+    }
+
     private function login(): string
     {
         $response = Http::withoutVerifying()->timeout(30)->post(self::LOGIN_URL, [

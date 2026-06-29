@@ -6,6 +6,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductAdController;
 use App\Http\Controllers\ProductAdLogController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\SalesHistoryController;
 use App\Http\Controllers\StoreController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +38,8 @@ Route::get('/products/suggest', [ProductController::class, 'suggest'])
 Route::resource('products', ProductController::class);
 Route::resource('categories', CategoryController::class);
 Route::resource('stores', StoreController::class);
+
+Route::get('/sales-history', [SalesHistoryController::class, 'index'])->name('sales-history.index');
 
 Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
 Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
