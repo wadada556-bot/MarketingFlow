@@ -48,6 +48,7 @@
                     {{ $data['message'] ?? '' }}
                 </p>
                 @if(!empty($data['changes']))
+                    @php $changeId = 'changes-' . $notif->id; @endphp
                     <div class="mt-2" style="font-size:12px;color:var(--md-on-surface-variant)">
                         @foreach(array_slice($data['changes'], 0, 5) as $c)
                             @php
@@ -59,9 +60,23 @@
                             <div>• {{ $c['sku'] }}: {{ $old }} → {{ $new }} ({{ $pctStr }})</div>
                         @endforeach
                         @if(count($data['changes']) > 5)
-                            <div class="mt-1" style="color:var(--md-on-surface-variant)">
-                                ... dan {{ count($data['changes']) - 5 }} SKU lainnya
+                            <div id="{{ $changeId }}" style="display:none">
+                                @foreach(array_slice($data['changes'], 5) as $c)
+                                    @php
+                                        $old    = 'Rp ' . number_format($c['old'], 0, ',', '.');
+                                        $new    = 'Rp ' . number_format($c['new'], 0, ',', '.');
+                                        $pct    = $c['old'] > 0 ? round(($c['new'] - $c['old']) / $c['old'] * 100, 1) : 0;
+                                        $pctStr = ($pct >= 0 ? '+' : '') . number_format($pct, 1, ',', '.') . '%';
+                                    @endphp
+                                    <div>• {{ $c['sku'] }}: {{ $old }} → {{ $new }} ({{ $pctStr }})</div>
+                                @endforeach
                             </div>
+                            <button type="button"
+                                onclick="toggleChanges('{{ $changeId }}', this)"
+                                class="mt-1 btn btn-sm p-0"
+                                style="font-size:12px;color:var(--md-primary);background:none;border:none;cursor:pointer;text-decoration:underline">
+                                Lihat {{ count($data['changes']) - 5 }} SKU lainnya
+                            </button>
                         @endif
                     </div>
                 @endif
@@ -90,4 +105,16 @@
     </div>
 
 </div>
+
+@push('scripts')
+<script>
+function toggleChanges(id, btn) {
+    const el = document.getElementById(id);
+    const isHidden = el.style.display === 'none';
+    el.style.display = isHidden ? 'block' : 'none';
+    const count = el.querySelectorAll('div').length;
+    btn.textContent = isHidden ? 'Sembunyikan' : 'Lihat ' + count + ' SKU lainnya';
+}
+</script>
+@endpush
 @endsection
