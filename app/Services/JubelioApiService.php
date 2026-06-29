@@ -24,7 +24,9 @@ class JubelioApiService
     }
 
     /**
-     * Ambil satu halaman daftar order (header saja) dengan filter channel + status + tanggal.
+     * Ambil satu halaman daftar order (header saja) dengan filter channel + tanggal.
+     * Semua status diambil (tidak difilter wms_status_type) agar penjualan terhitung
+     * begitu order masuk; order Batal disaring di SalesSyncService lewat flag is_canceled.
      *
      * @param  array<int>  $channelIds        mis. [128, 131076]
      * @param  string      $fromIsoUtc        ISO UTC, mis. '2025-12-31T17:00:00.000Z'
@@ -39,7 +41,6 @@ class JubelioApiService
             'page_size'             => $pageSize,
             'channel_ids'           => array_values($channelIds),
             'sku_filter'            => 'false',
-            'wms_status_type'       => ['COMPLETED'],
             'transaction_date_from' => $fromIsoUtc,
             'transaction_date_to'   => $toIsoUtc,
             'sort_by'               => 'transaction_date',
