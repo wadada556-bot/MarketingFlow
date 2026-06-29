@@ -15,16 +15,16 @@ class SalesSyncService
     private const TZ        = 'Asia/Jakarta';
     private const PAGE_SIZE = 100;
 
-    /** Jeda antar panggilan detail (mikrodetik) untuk menahan rate-limit Jubelio. */
-    private int $detailDelayUs = 400_000; // 0,4 detik
+    /** Jumlah detail order yang diambil paralel per batch (dibatasi rate-limit 560/menit). */
+    private int $concurrency = 8;
 
     public function __construct(private JubelioApiService $jubelio)
     {
     }
 
-    public function setDetailDelayMs(int $ms): self
+    public function setConcurrency(int $n): self
     {
-        $this->detailDelayUs = max(0, $ms) * 1000;
+        $this->concurrency = max(1, $n);
         return $this;
     }
 
@@ -59,6 +59,8 @@ class SalesSyncService
             $orders = $resp['data'];
             $total ??= $resp['totalCount'];
 
+            // Saring order valid (bukan Batal, dalam rentang WIB), kumpulkan id-nya
+            $valid = [];
             foreach ($orders as $o) {
                 $collected++;
 
@@ -72,12 +74,18 @@ class SalesSyncService
                     continue;
                 }
 
-                $detail = $this->jubelio->getOrderDetail($token, (int) $o['salesorder_id']);
-                $this->accumulate($agg, $o, $detail, $txDate, $now);
-                $ordersHandled++;
+                $valid[] = ['order' => $o, 'txDate' => $txDate];
+            }
 
-                if ($this->detailDelayUs > 0) {
-                    usleep($this->detailDelayUs);
+            // Ambil detail semua order valid di halaman ini secara paralel
+            if (! empty($valid)) {
+                $ids     = array_map(fn ($v) => (int) $v['order']['salesorder_id'], $valid);
+                $details = $this->jubelio->getOrderDetailsBatch($token, $ids, $this->concurrency);
+
+                foreach ($valid as $v) {
+                    $detail = $details[(int) $v['order']['salesorder_id']] ?? [];
+                    $this->accumulate($agg, $v['order'], $detail, $v['txDate'], $now);
+                    $ordersHandled++;
                 }
             }
 

@@ -12,7 +12,7 @@ class BackfillSales extends Command
     protected $signature = 'sales:backfill
         {--from=2026-01-01 : Tanggal mulai (WIB)}
         {--to= : Tanggal akhir (WIB), default hari ini}
-        {--delay=400 : Jeda antar panggilan detail (ms)}
+        {--concurrency=8 : Jumlah detail order diambil paralel per batch}
         {--fresh : Abaikan checkpoint, mulai dari awal}';
 
     protected $description = 'Backfill histori penjualan TikTok+Tokopedia per-bulan (resumable) ke daily_sku_sales';
@@ -29,7 +29,7 @@ class BackfillSales extends Command
             return self::FAILURE;
         }
 
-        $sales->setDetailDelayMs((int) $this->option('delay'));
+        $sales->setConcurrency((int) $this->option('concurrency'));
 
         $state = SalesSyncState::firstOrCreate(['key' => 'backfill']);
         if ($this->option('fresh')) {

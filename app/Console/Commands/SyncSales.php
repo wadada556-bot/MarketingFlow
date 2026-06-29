@@ -11,7 +11,7 @@ class SyncSales extends Command
 {
     protected $signature = 'sales:sync
         {--days=30 : Jumlah hari ke belakang yang di-scan ulang}
-        {--delay=400 : Jeda antar panggilan detail (ms) untuk menahan rate-limit}';
+        {--concurrency=8 : Jumlah detail order diambil paralel per batch}';
 
     protected $description = 'Sync penjualan TikTok+Tokopedia (rolling N hari terakhir) ke daily_sku_sales';
 
@@ -27,7 +27,7 @@ class SyncSales extends Command
         $state->update(['status' => 'running']);
 
         try {
-            $res = $sales->setDetailDelayMs((int) $this->option('delay'))
+            $res = $sales->setConcurrency((int) $this->option('concurrency'))
                 ->syncRange($from, $to, SalesSyncService::CHANNELS, function ($page, $collected, $total) {
                     $this->line("  halaman {$page}: {$collected}/{$total} order");
                 });

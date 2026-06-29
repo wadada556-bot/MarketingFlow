@@ -15,6 +15,93 @@ class JubelioApiService
     private const SALES_LIST_URL   = 'https://open.jubelio.com/core-api/sales/v2/orders/';
     private const SALES_DETAIL_URL = 'https://open.jubelio.com/core-api/sales/orders/';
 
+    // Rate limit Jubelio = 600 req/menit. Pakai 560 sebagai plafon (sisakan margin).
+    private const RATE_MAX_PER_MIN = 560;
+    private const DETAIL_CONCURRENCY = 8;
+
+    /** @var array<float> timestamp (epoch detik) tiap request, untuk sliding-window limiter */
+    private array $reqLog = [];
+
+    /**
+     * Sliding-window limiter: tahan eksekusi sampai aman mengirim $n request lagi
+     * tanpa melewati RATE_MAX_PER_MIN dalam 60 detik terakhir.
+     */
+    private function rateGate(int $n): void
+    {
+        while (true) {
+            $now = microtime(true);
+            $this->reqLog = array_values(array_filter($this->reqLog, fn ($t) => $t > $now - 60));
+            if (count($this->reqLog) + $n <= self::RATE_MAX_PER_MIN) {
+                return;
+            }
+            // Tunggu sampai request terlama keluar dari jendela 60 detik
+            $waitUntil = $this->reqLog[0] + 60;
+            $sleep     = max(0.2, $waitUntil - $now);
+            usleep((int) ($sleep * 1_000_000));
+        }
+    }
+
+    private function logReqs(int $n): void
+    {
+        $now = microtime(true);
+        for ($i = 0; $i < $n; $i++) {
+            $this->reqLog[] = $now;
+        }
+    }
+
+    /**
+     * Ambil detail BANYAK order secara paralel (Http::pool) dengan menghormati
+     * rate-limit 560/menit. Jauh lebih cepat dari ambil satu per satu.
+     *
+     * @param  array<int>  $ids
+     * @return array<int, array>  [salesorder_id => detail]
+     */
+    public function getOrderDetailsBatch(string $token, array $ids, int $concurrency = self::DETAIL_CONCURRENCY): array
+    {
+        $results = [];
+        $pending = array_values(array_unique($ids));
+
+        for ($round = 0; $round < 4 && ! empty($pending); $round++) {
+            if ($round > 0) {
+                Log::warning('[Jubelio] batch detail retry, sisa ' . count($pending));
+                sleep(20);
+            }
+
+            $failed = [];
+
+            foreach (array_chunk($pending, $concurrency) as $chunk) {
+                $this->rateGate(count($chunk));
+
+                $responses = Http::pool(fn ($pool) => array_map(
+                    fn ($id) => $pool->as((string) $id)
+                        ->withoutVerifying()->timeout(90)
+                        ->withHeaders(['Authorization' => $token, 'accept' => 'application/json'])
+                        ->get(self::SALES_DETAIL_URL . $id),
+                    $chunk
+                ));
+
+                $this->logReqs(count($chunk));
+
+                foreach ($chunk as $id) {
+                    $resp = $responses[(string) $id] ?? null;
+                    if ($resp instanceof \Illuminate\Http\Client\Response && $resp->successful()) {
+                        $results[$id] = $resp->json() ?? [];
+                    } else {
+                        $failed[] = $id; // 429 / error -> coba lagi di ronde berikutnya
+                    }
+                }
+            }
+
+            $pending = $failed;
+        }
+
+        if (! empty($pending)) {
+            throw new \RuntimeException('[Jubelio] gagal ambil detail untuk ' . count($pending) . ' order.');
+        }
+
+        return $results;
+    }
+
     /**
      * Login sekali, lalu pakai token-nya untuk banyak panggilan (list + detail).
      */
@@ -78,12 +165,14 @@ class JubelioApiService
 
         for ($i = 0; $i < $attempts; $i++) {
             try {
+                $this->rateGate(1);
                 $response = Http::withoutVerifying()->timeout(90)
                     ->withHeaders([
                         'Authorization' => $token,
                         'accept'        => 'application/json',
                     ])
                     ->get($url, $query);
+                $this->logReqs(1);
 
                 if ($response->status() === 429) {
                     $wait = 15 * ($i + 1); // 15s, 30s, 45s, ...
