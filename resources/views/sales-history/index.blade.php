@@ -40,18 +40,7 @@
                     <input type="date" name="date_to" value="{{ $to }}" class="form-control">
                 </div>
             </div>
-            <div class="col-6 col-md-2">
-                <div class="md-field" style="margin-bottom:0;">
-                    <label>Channel</label>
-                    <select name="channel_id" class="form-select">
-                        <option value="">Semua</option>
-                        @foreach ($channels as $id => $name)
-                            <option value="{{ $id }}" @selected($channelId === $id)>{{ $name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-md-3">
                 <div class="md-field" style="margin-bottom:0;">
                     <label>Toko</label>
                     <select name="store_id" class="form-select">
@@ -62,7 +51,7 @@
                     </select>
                 </div>
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-md-3">
                 <button type="submit" class="btn-md-filled w-100"
                         style="justify-content:center;padding-top:11px;padding-bottom:11px;">
                     <i class="bi bi-funnel"></i> Filter
@@ -83,7 +72,7 @@
             @endphp
             @foreach ($presets as $label => [$pf, $pt])
                 @php $isActive = ($from === $pf && $to === $pt); @endphp
-                <a href="{{ route('sales-history.index', array_filter(['date_from' => $pf, 'date_to' => $pt, 'channel_id' => $channelId, 'store_id' => $storeId])) }}"
+                <a href="{{ route('sales-history.index', array_filter(['date_from' => $pf, 'date_to' => $pt, 'store_id' => $storeId])) }}"
                    class="md-choice-chip {{ $isActive ? 'checked' : '' }}" style="text-decoration:none;">
                     <i class="bi bi-check md-check-icon"></i>{{ $label }}
                 </a>
@@ -94,9 +83,7 @@
     {{-- ── Ringkasan ──────────────────────────────────────────── --}}
     @php
         $cards = [
-            ['Total Omzet',       $rp($totals['omzet']),                          true],
-            ['Total Qty Terjual', number_format($totals['qty'],      0, ',', '.'), false],
-            ['Total Pesanan',     number_format($totals['orders'],   0, ',', '.'), false],
+            ['Total Qty Terjual', number_format($totals['qty'],      0, ',', '.'), true],
             ['Jumlah Produk',     number_format($totals['products'], 0, ',', '.'), false],
         ];
     @endphp
@@ -130,14 +117,8 @@
     @if (!empty($products))
     <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
         <span style="font-size:12px;color:var(--md-on-surface-variant);font-weight:500;">Urutkan:</span>
-        <button class="sort-btn md-choice-chip checked" data-sort="omzet" data-dir="desc" type="button">
-            <i class="bi bi-check md-check-icon"></i>Omzet <span class="sort-arrow">↓</span>
-        </button>
-        <button class="sort-btn md-choice-chip" data-sort="qty" data-dir="desc" type="button">
+        <button class="sort-btn md-choice-chip checked" data-sort="qty" data-dir="desc" type="button">
             <i class="bi bi-check md-check-icon"></i>Qty <span class="sort-arrow">↓</span>
-        </button>
-        <button class="sort-btn md-choice-chip" data-sort="orders" data-dir="desc" type="button">
-            <i class="bi bi-check md-check-icon"></i>Pesanan <span class="sort-arrow">↓</span>
         </button>
     </div>
     @endif
@@ -160,19 +141,14 @@
                             $exportRows[] = [
                                 $v['sku'],
                                 $cleanStore($st['store_name']),
-                                $st['channel_name'],
                                 $st['qty'],
-                                $st['omzet'],
-                                $st['orders'],
                             ];
                         }
                     }
                 @endphp
                 <div class="accordion-item sales-product-item"
                      data-search="{{ strtolower($p['parent_sku'] . ' ' . $p['product_name'] . ' ' . implode(' ', array_column($p['variants'], 'sku'))) }}"
-                     data-omzet="{{ $p['omzet'] }}"
                      data-qty="{{ $p['qty'] }}"
-                     data-orders="{{ $p['orders'] }}"
                      data-parent-sku="{{ $p['parent_sku'] }}"
                      data-export="{{ json_encode($exportRows) }}"
                      style="border:1px solid var(--md-outline-variant);border-radius:var(--md-shape-lg);
@@ -214,11 +190,8 @@
                                         <thead>
                                             <tr>
                                                 <th style="{{ $thBg }}">SKU Variation</th>
-                                                <th style="{{ $thBg }}">Shop / Toko</th>
-                                                <th style="{{ $thBg }}">Channel</th>
-                                                <th style="text-align:right;{{ $thBg }}">Quantity</th>
-                                                <th style="text-align:right;{{ $thBg }}">Omzet</th>
-                                                <th style="text-align:right;{{ $thBg }}">Orders</th>
+                                                <th style="{{ $thBg }}">Nama Toko</th>
+                                                <th style="text-align:right;{{ $thBg }}">Total Qty Terjual</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -232,20 +205,12 @@
                                                                 style="font-weight:600;border-right:1px solid var(--md-outline-variant);border-bottom:1px solid var(--md-outline-variant);white-space:nowrap;">
                                                                 {{ $v['sku'] }}
                                                                 <div style="font-size:11px;font-weight:400;color:var(--md-on-surface-variant);margin-top:2px;">
-                                                                    Total: {{ number_format($v['qty'], 0, ',', '.') }} Qty &nbsp; {{ $rp($v['omzet']) }}
+                                                                    Total: {{ number_format($v['qty'], 0, ',', '.') }} Qty
                                                                 </div>
                                                             </td>
                                                         @endif
                                                         <td style="white-space:nowrap;{{ $sep }}">{{ $cleanStore($st['store_name']) }}</td>
-                                                        <td style="white-space:nowrap;{{ $sep }}">
-                                                            <span style="display:inline-flex;align-items:center;gap:6px;">
-                                                                {!! $channelIcon($st['channel_name']) !!}
-                                                                {{ $st['channel_name'] }}
-                                                            </span>
-                                                        </td>
                                                         <td style="text-align:right;{{ $sep }}">{{ number_format($st['qty'], 0, ',', '.') }}</td>
-                                                        <td style="text-align:right;color:var(--md-primary);font-weight:600;{{ $sep }}">{{ $rp($st['omzet']) }}</td>
-                                                        <td style="text-align:right;{{ $sep }}">{{ number_format($st['orders'], 0, ',', '.') }}</td>
                                                     </tr>
                                                 @endforeach
                                             @endforeach
@@ -253,10 +218,8 @@
                                         @php $tfCell = 'padding:14px 16px;font-weight:700;background:var(--md-surface-container);border-top:2px solid var(--md-outline-variant);'; @endphp
                                         <tfoot>
                                             <tr>
-                                                <td colspan="3" style="{{ $tfCell }}color:var(--md-on-surface);">TOTAL</td>
+                                                <td colspan="2" style="{{ $tfCell }}color:var(--md-on-surface);">TOTAL</td>
                                                 <td style="{{ $tfCell }}text-align:right;">{{ number_format($p['qty'], 0, ',', '.') }}</td>
-                                                <td style="{{ $tfCell }}text-align:right;color:var(--md-primary);">{{ $rp($p['omzet']) }}</td>
-                                                <td style="{{ $tfCell }}text-align:right;">{{ number_format($p['orders'], 0, ',', '.') }}</td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -348,7 +311,7 @@
         const item = e.target.closest('.sales-product-item');
         const parentSku = item.dataset.parentSku || 'export';
         const rows = JSON.parse(item.dataset.export || '[]');
-        const headers = ['SKU Variation', 'Shop / Toko', 'Channel', 'Quantity', 'Omzet', 'Orders'];
+        const headers = ['SKU Variation', 'Nama Toko', 'Total Qty Terjual'];
         const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Sales');

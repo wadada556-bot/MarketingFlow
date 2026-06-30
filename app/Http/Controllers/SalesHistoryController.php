@@ -26,13 +26,14 @@ class SalesHistoryController extends Controller
             ? Carbon::parse($request->query('date_to'))->toDateString()
             : $today->toDateString();
 
-        $channelId = $request->integer('channel_id') ?: null;
-        $storeId   = $request->filled('store_id') ? (int) $request->query('store_id') : null;
+        // Halaman ini khusus menampilkan channel TikTok
+        $tiktokId = 131076;
+        $storeId  = $request->filled('store_id') ? (int) $request->query('store_id') : null;
 
         // Agregasi per (parent_sku, sku, toko, channel) dalam rentang
         $rows = DailySkuSales::query()
             ->whereBetween('sales_date', [$from, $to])
-            ->when($channelId, fn ($q) => $q->where('channel_id', $channelId))
+            ->where('channel_id', $tiktokId)
             ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
             ->selectRaw('parent_sku, sku, store_id, store_name, channel_id, channel_name,
                          MAX(product_name) as product_name,
@@ -86,16 +87,16 @@ class SalesHistoryController extends Controller
             ];
         }
 
-        // Urut: produk & variasi by omzet desc; toko by omzet desc
+        // Urut: produk & variasi by qty desc; toko by qty desc
         foreach ($products as &$p) {
             foreach ($p['variants'] as &$v) {
-                usort($v['stores'], fn ($a, $b) => $b['omzet'] <=> $a['omzet']);
+                usort($v['stores'], fn ($a, $b) => $b['qty'] <=> $a['qty']);
             }
             unset($v);
-            uasort($p['variants'], fn ($a, $b) => $b['omzet'] <=> $a['omzet']);
+            uasort($p['variants'], fn ($a, $b) => $b['qty'] <=> $a['qty']);
         }
         unset($p);
-        uasort($products, fn ($a, $b) => $b['omzet'] <=> $a['omzet']);
+        uasort($products, fn ($a, $b) => $b['qty'] <=> $a['qty']);
 
         // Total keseluruhan
         $totals = [
@@ -105,9 +106,10 @@ class SalesHistoryController extends Controller
             'products' => count($products),
         ];
 
-        // Opsi filter toko (dari data yang ada)
+        // Opsi filter toko (hanya toko TikTok)
         $storeOptions = DailySkuSales::query()
             ->select('store_id', 'store_name')
+            ->where('channel_id', $tiktokId)
             ->whereNotNull('store_name')
             ->distinct()
             ->orderBy('store_name')
@@ -118,9 +120,7 @@ class SalesHistoryController extends Controller
             'totals'       => $totals,
             'from'         => $from,
             'to'           => $to,
-            'channelId'    => $channelId,
             'storeId'      => $storeId,
-            'channels'     => self::CHANNELS,
             'storeOptions' => $storeOptions,
         ]);
     }
