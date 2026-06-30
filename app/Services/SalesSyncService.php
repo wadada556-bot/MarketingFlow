@@ -64,11 +64,8 @@ class SalesSyncService
             foreach ($orders as $o) {
                 $collected++;
 
-                if (! empty($o['is_return'])) {
-                    continue;
-                }
-
                 // Tanggal transaksi dalam WIB; buang yang jatuh di luar rentang (spillover batas zona waktu)
+                // is_return tidak ada di list response — dicek dari detail setelah fetch
                 $txDate = Carbon::parse($o['transaction_date'])->setTimezone(self::TZ)->toDateString();
                 if ($txDate < $fromDate || $txDate > $toDate) {
                     continue;
@@ -84,6 +81,9 @@ class SalesSyncService
 
                 foreach ($valid as $v) {
                     $detail = $details[(int) $v['order']['doc_id']] ?? [];
+                    if (! empty($detail['is_return'])) {
+                        continue; // is_return hanya ada di detail, bukan di list
+                    }
                     $this->accumulate($agg, $v['order'], $detail, $v['txDate'], $now);
                     $ordersHandled++;
                 }
@@ -176,7 +176,7 @@ class SalesSyncService
                 ];
             }
 
-            $agg[$key]['qty_terjual'] += (float) ($it['qty'] ?? 0);
+            $agg[$key]['qty_terjual'] += (float) ($it['qty_in_base'] ?? $it['qty'] ?? 0);
             $agg[$key]['omzet']       += (float) ($it['amount'] ?? 0);
 
             if ($orderId !== null) {

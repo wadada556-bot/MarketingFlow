@@ -127,7 +127,6 @@ class JubelioApiService
             'page'                  => $page,
             'page_size'             => $pageSize,
             'channel_ids'           => array_values($channelIds),
-            'sku_filter'            => 'false',
             'transaction_date_from' => $fromIsoUtc,
             'transaction_date_to'   => $toIsoUtc,
             'sort_by'               => 'transaction_date',
