@@ -5,7 +5,13 @@
 @php
     $rp = fn ($n) => 'Rp ' . number_format((int) $n, 0, ',', '.');
     $today = \Carbon\Carbon::today();
-    $cleanStore = fn ($name) => trim(preg_replace(['/^(?:Shop \| [^-]+-|[A-Z]+-)/i', '/\s*\(TTS\)$/i'], '', $name ?? '')) ?: ($name ?? '—');
+    $cleanStore = fn ($name) => trim(preg_replace([
+        '/^(?:Shop\s*\|\s*)?(?:tokopedia|tiktok)\s*-\s*/i',  // strip prefix channel (spasi/tanpa spasi)
+        '/\s*\(TTS\)\s*$/i',                                  // strip suffix (TTS)
+    ], '', $name ?? '')) ?: ($name ?? '—');
+    $channelIcon = fn ($name) => str_contains(strtolower($name), 'tiktok')
+        ? '<i class="bi bi-tiktok" style="color:#010101;"></i>'
+        : '<i class="bi bi-shop" style="color:#42B549;"></i>';
 @endphp
 
 @section('content')
@@ -13,7 +19,6 @@
     <div class="md-page-header">
         <div>
             <h1>History Penjualan</h1>
-            <p class="subtitle">Penjualan selesai per produk, SKU variasi & toko (Tokopedia + TikTok)</p>
         </div>
     </div>
 
@@ -21,42 +26,52 @@
 
     {{-- ── Filter ─────────────────────────────────────────────── --}}
     <form method="GET" action="{{ route('sales-history.index') }}"
-          style="background:var(--md-surface-container-low);border:1px solid var(--md-outline-variant);
-                 border-radius:var(--md-shape-md,16px);padding:16px;margin-bottom:20px;">
+          class="md-card mb-4" style="padding:20px;">
         <div class="row g-3 align-items-end">
             <div class="col-6 col-md-3">
-                <label style="font-size:12px;color:var(--md-on-surface-variant);font-weight:600;">Dari Tanggal</label>
-                <input type="date" name="date_from" value="{{ $from }}" class="form-control form-control-sm">
+                <div class="md-field" style="margin-bottom:0;">
+                    <label>Dari Tanggal</label>
+                    <input type="date" name="date_from" value="{{ $from }}" class="form-control">
+                </div>
             </div>
             <div class="col-6 col-md-3">
-                <label style="font-size:12px;color:var(--md-on-surface-variant);font-weight:600;">Sampai Tanggal</label>
-                <input type="date" name="date_to" value="{{ $to }}" class="form-control form-control-sm">
+                <div class="md-field" style="margin-bottom:0;">
+                    <label>Sampai Tanggal</label>
+                    <input type="date" name="date_to" value="{{ $to }}" class="form-control">
+                </div>
             </div>
             <div class="col-6 col-md-2">
-                <label style="font-size:12px;color:var(--md-on-surface-variant);font-weight:600;">Channel</label>
-                <select name="channel_id" class="form-select form-select-sm">
-                    <option value="">Semua</option>
-                    @foreach ($channels as $id => $name)
-                        <option value="{{ $id }}" @selected($channelId === $id)>{{ $name }}</option>
-                    @endforeach
-                </select>
+                <div class="md-field" style="margin-bottom:0;">
+                    <label>Channel</label>
+                    <select name="channel_id" class="form-select">
+                        <option value="">Semua</option>
+                        @foreach ($channels as $id => $name)
+                            <option value="{{ $id }}" @selected($channelId === $id)>{{ $name }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
             <div class="col-6 col-md-2">
-                <label style="font-size:12px;color:var(--md-on-surface-variant);font-weight:600;">Toko</label>
-                <select name="store_id" class="form-select form-select-sm">
-                    <option value="">Semua</option>
-                    @foreach ($storeOptions as $s)
-                        <option value="{{ $s->store_id }}" @selected($storeId === (int) $s->store_id)>{{ $cleanStore($s->store_name) }}</option>
-                    @endforeach
-                </select>
+                <div class="md-field" style="margin-bottom:0;">
+                    <label>Toko</label>
+                    <select name="store_id" class="form-select">
+                        <option value="">Semua</option>
+                        @foreach ($storeOptions as $s)
+                            <option value="{{ $s->store_id }}" @selected($storeId === (int) $s->store_id)>{{ $cleanStore($s->store_name) }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
-            <div class="col-12 col-md-2 d-flex gap-2">
-                <button type="submit" class="btn-md-filled w-100"><i class="bi bi-funnel"></i> Filter</button>
+            <div class="col-12 col-md-2">
+                <button type="submit" class="btn-md-filled w-100"
+                        style="justify-content:center;padding-top:11px;padding-bottom:11px;">
+                    <i class="bi bi-funnel"></i> Filter
+                </button>
             </div>
         </div>
 
         {{-- Quick presets --}}
-        <div class="d-flex flex-wrap gap-2 mt-3">
+        <div class="md-chip-choices mt-3">
             @php
                 $presets = [
                     'Hari ini'    => [$today->toDateString(), $today->toDateString()],
@@ -69,35 +84,29 @@
             @foreach ($presets as $label => [$pf, $pt])
                 @php $isActive = ($from === $pf && $to === $pt); @endphp
                 <a href="{{ route('sales-history.index', array_filter(['date_from' => $pf, 'date_to' => $pt, 'channel_id' => $channelId, 'store_id' => $storeId])) }}"
-                   style="font-size:12px;padding:5px 12px;border-radius:var(--md-shape-full,999px);text-decoration:none;
-                          border:1px solid var(--md-outline-variant);
-                          background:{{ $isActive ? 'var(--md-secondary-container)' : 'transparent' }};
-                          color:{{ $isActive ? 'var(--md-on-secondary-container)' : 'var(--md-on-surface-variant)' }};
-                          font-weight:{{ $isActive ? '600' : '500' }};">{{ $label }}</a>
+                   class="md-choice-chip {{ $isActive ? 'checked' : '' }}" style="text-decoration:none;">
+                    <i class="bi bi-check md-check-icon"></i>{{ $label }}
+                </a>
             @endforeach
         </div>
     </form>
 
     {{-- ── Ringkasan ──────────────────────────────────────────── --}}
-    <div class="row g-3 mb-4">
-        @php
-            $cards = [
-                ['Total Omzet', $rp($totals['omzet']), 'bi-cash-stack', 'var(--md-primary)'],
-                ['Total Qty Terjual', number_format($totals['qty'], 0, ',', '.'), 'bi-box-seam', 'var(--md-tertiary, #7F77DD)'],
-                ['Total Pesanan', number_format($totals['orders'], 0, ',', '.'), 'bi-receipt', '#1D9E75'],
-                ['Jumlah Produk', number_format($totals['products'], 0, ',', '.'), 'bi-grid', '#BA7517'],
-            ];
-        @endphp
-        @foreach ($cards as [$label, $val, $icon, $color])
-            <div class="col-6 col-md-3">
-                <div style="background:var(--md-surface-container-low);border:1px solid var(--md-outline-variant);
-                            border-radius:var(--md-shape-md,16px);padding:clamp(10px,3vw,16px);height:100%;">
-                    <div style="display:flex;align-items:center;gap:clamp(5px,1.5vw,8px);margin-bottom:6px;">
-                        <i class="bi {{ $icon }}" style="font-size:clamp(13px,3vw,16px);color:{{ $color }}"></i>
-                        <span style="font-size:clamp(11px,2.5vw,12px);color:var(--md-on-surface-variant);font-weight:600;line-height:1.2;">{{ $label }}</span>
-                    </div>
-                    <div style="font-size:clamp(14px,4vw,20px);font-weight:700;color:var(--md-on-surface);word-break:break-word;">{{ $val }}</div>
-                </div>
+    @php
+        $cards = [
+            ['Total Omzet',       $rp($totals['omzet']),                          true],
+            ['Total Qty Terjual', number_format($totals['qty'],      0, ',', '.'), false],
+            ['Total Pesanan',     number_format($totals['orders'],   0, ',', '.'), false],
+            ['Jumlah Produk',     number_format($totals['products'], 0, ',', '.'), false],
+        ];
+    @endphp
+    <div class="md-card mb-4" style="display:flex;flex-wrap:wrap;">
+        @foreach ($cards as $ci => [$label, $val, $isPrimary])
+            <div style="flex:1;min-width:140px;padding:16px 20px;
+                        {{ $ci > 0 ? 'border-left:1px solid var(--md-outline-variant);' : '' }}">
+                <div style="font-size:12px;color:var(--md-on-surface-variant);font-weight:500;margin-bottom:4px;">{{ $label }}</div>
+                <div style="font-size:clamp(16px,3vw,22px);font-weight:700;
+                            color:{{ $isPrimary ? 'var(--md-primary)' : 'var(--md-on-surface)' }};">{{ $val }}</div>
             </div>
         @endforeach
     </div>
@@ -119,11 +128,17 @@
 
     {{-- ── Sort produk (client-side) ────────────────────────────── --}}
     @if (!empty($products))
-    <div class="mb-2 d-flex align-items-center gap-2 flex-wrap">
-        <span style="font-size:12px;color:var(--md-on-surface-variant);">Urutkan:</span>
-        <button class="sort-btn btn-md-tonal active" data-sort="omzet" type="button" style="font-size:12px;padding:4px 12px;">Omzet ↓</button>
-        <button class="sort-btn btn-md-outlined" data-sort="qty"   type="button" style="font-size:12px;padding:4px 12px;">Qty ↓</button>
-        <button class="sort-btn btn-md-outlined" data-sort="orders" type="button" style="font-size:12px;padding:4px 12px;">Pesanan ↓</button>
+    <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+        <span style="font-size:12px;color:var(--md-on-surface-variant);font-weight:500;">Urutkan:</span>
+        <button class="sort-btn md-choice-chip checked" data-sort="omzet" data-dir="desc" type="button">
+            <i class="bi bi-check md-check-icon"></i>Omzet <span class="sort-arrow">↓</span>
+        </button>
+        <button class="sort-btn md-choice-chip" data-sort="qty" data-dir="desc" type="button">
+            <i class="bi bi-check md-check-icon"></i>Qty <span class="sort-arrow">↓</span>
+        </button>
+        <button class="sort-btn md-choice-chip" data-sort="orders" data-dir="desc" type="button">
+            <i class="bi bi-check md-check-icon"></i>Pesanan <span class="sort-arrow">↓</span>
+        </button>
     </div>
     @endif
 
@@ -137,82 +152,115 @@
     @else
         <div class="accordion" id="salesAccordion">
             @foreach ($products as $p)
-                @php $pid = 'p_' . md5($p['parent_sku']); @endphp
+                @php
+                    $pid = 'p_' . md5($p['parent_sku']);
+                    $exportRows = [];
+                    foreach ($p['variants'] as $v) {
+                        foreach ($v['stores'] as $st) {
+                            $exportRows[] = [
+                                $v['sku'],
+                                $cleanStore($st['store_name']),
+                                $st['channel_name'],
+                                $st['qty'],
+                                $st['omzet'],
+                                $st['orders'],
+                            ];
+                        }
+                    }
+                @endphp
                 <div class="accordion-item sales-product-item"
                      data-search="{{ strtolower($p['parent_sku'] . ' ' . $p['product_name'] . ' ' . implode(' ', array_column($p['variants'], 'sku'))) }}"
                      data-omzet="{{ $p['omzet'] }}"
                      data-qty="{{ $p['qty'] }}"
                      data-orders="{{ $p['orders'] }}"
-                     style="border:1px solid var(--md-outline-variant);border-radius:var(--md-shape-md,16px);
-                            margin-bottom:10px;overflow:hidden;background:var(--md-surface);">
+                     data-parent-sku="{{ $p['parent_sku'] }}"
+                     data-export="{{ json_encode($exportRows) }}"
+                     style="border:1px solid var(--md-outline-variant);border-radius:var(--md-shape-lg);
+                            margin-bottom:12px;overflow:hidden;background:var(--md-surface-container-lowest);">
                     <h2 class="accordion-header">
                         <button class="accordion-button collapsed" type="button"
                                 data-bs-toggle="collapse" data-bs-target="#{{ $pid }}"
-                                style="background:var(--md-surface);box-shadow:none;">
-                            <div class="d-flex flex-wrap align-items-center justify-content-between w-100" style="gap:10px;padding-right:8px;">
+                                style="background:var(--md-surface-container-lowest);box-shadow:none;">
+                            <div class="d-flex flex-wrap align-items-center w-100" style="gap:16px;padding-right:16px;">
                                 <div style="min-width:0;">
-                                    <div style="font-weight:700;color:var(--md-on-surface);font-size:14px;">{{ $p['parent_sku'] }}</div>
-                                    <div style="font-size:12px;color:var(--md-on-surface-variant);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px;">
-                                        {{ $p['product_name'] ?: '—' }}
-                                    </div>
-                                    <div class="mt-1 d-flex gap-1 flex-wrap">
+                                    <div style="font-weight:700;color:var(--md-on-surface);font-size:19px;letter-spacing:.1px;">{{ $p['parent_sku'] }}</div>
+                                    <div class="mt-2 d-flex gap-1 flex-wrap">
                                         @foreach ($p['channels'] as $cName)
-                                            <span style="font-size:10px;font-weight:600;padding:1px 8px;border-radius:999px;
-                                                         background:var(--md-secondary-container);color:var(--md-on-secondary-container);">{{ $cName }}</span>
+                                            <span class="md-chip secondary">{!! $channelIcon($cName) !!} {{ $cName }}</span>
                                         @endforeach
-                                    </div>
-                                </div>
-                                <div class="d-flex" style="gap:18px;text-align:right;">
-                                    <div>
-                                        <div style="font-size:11px;color:var(--md-on-surface-variant);">Qty</div>
-                                        <div style="font-weight:700;color:var(--md-on-surface);">{{ number_format($p['qty'], 0, ',', '.') }}</div>
-                                    </div>
-                                    <div>
-                                        <div style="font-size:11px;color:var(--md-on-surface-variant);">Omzet</div>
-                                        <div style="font-weight:700;color:var(--md-primary);">{{ $rp($p['omzet']) }}</div>
                                     </div>
                                 </div>
                             </div>
                         </button>
                     </h2>
                     <div id="{{ $pid }}" class="accordion-collapse collapse">
-                        <div class="accordion-body" style="padding:0;">
-                            <div class="table-responsive">
-                                <table class="table table-sm mb-0" style="font-size:13px;">
-                                    <thead>
-                                        <tr style="background:var(--md-surface-container-low);">
-                                            <th style="font-size:11px;color:var(--md-on-surface-variant);">SKU Variasi</th>
-                                            <th style="font-size:11px;color:var(--md-on-surface-variant);">Toko</th>
-                                            <th style="font-size:11px;color:var(--md-on-surface-variant);">Channel</th>
-                                            <th class="text-end" style="font-size:11px;color:var(--md-on-surface-variant);">Qty</th>
-                                            <th class="text-end" style="font-size:11px;color:var(--md-on-surface-variant);">Omzet</th>
-                                            <th class="text-end" style="font-size:11px;color:var(--md-on-surface-variant);">Pesanan</th>
-                                            <th class="text-end" style="font-size:11px;color:var(--md-on-surface-variant);">Avg/Pesanan</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach ($p['variants'] as $v)
-                                            @foreach ($v['stores'] as $i => $st)
-                                                <tr>
-                                                    @if ($i === 0)
-                                                        <td rowspan="{{ count($v['stores']) }}" style="vertical-align:top;font-weight:600;color:var(--md-on-surface);border-right:1px solid var(--md-outline-variant);">
-                                                            {{ $v['sku'] }}
-                                                            <div style="font-size:11px;font-weight:500;color:var(--md-on-surface-variant);">
-                                                                Σ {{ number_format($v['qty'], 0, ',', '.') }} · {{ $rp($v['omzet']) }}
-                                                            </div>
+                        <div class="accordion-body" style="padding:16px;background:var(--md-surface-container-low);">
+                            {{-- Toolbar --}}
+                            <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+                                <div style="position:relative;flex:1;min-width:160px;max-width:280px;">
+                                    <i class="bi bi-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--md-on-surface-variant);"></i>
+                                    <input type="text" class="sku-search form-control form-control-sm"
+                                           placeholder="Cari SKU variasi..." style="padding-left:34px;">
+                                </div>
+                                <button type="button" class="btn-md-filled export-csv-btn" style="padding:7px 16px;font-size:13px;">
+                                    <i class="bi bi-download"></i> Export
+                                </button>
+                            </div>
+                            {{-- Table --}}
+                            <div class="md-table-wrap">
+                                <div class="table-responsive">
+                                    <table class="md-table">
+                                        @php $thBg = 'background:var(--md-secondary-container);color:var(--md-on-secondary-container);'; @endphp
+                                        <thead>
+                                            <tr>
+                                                <th style="{{ $thBg }}">SKU Variation</th>
+                                                <th style="{{ $thBg }}">Shop / Toko</th>
+                                                <th style="{{ $thBg }}">Channel</th>
+                                                <th style="text-align:right;{{ $thBg }}">Quantity</th>
+                                                <th style="text-align:right;{{ $thBg }}">Omzet</th>
+                                                <th style="text-align:right;{{ $thBg }}">Orders</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($p['variants'] as $v)
+                                                @php $sCount = count($v['stores']); @endphp
+                                                @foreach ($v['stores'] as $i => $st)
+                                                    @php $sep = ($i === $sCount - 1) ? 'border-bottom:1px solid var(--md-outline-variant);' : ''; @endphp
+                                                    <tr data-sku="{{ strtolower($v['sku']) }}">
+                                                        @if ($i === 0)
+                                                            <td rowspan="{{ $sCount }}"
+                                                                style="font-weight:600;border-right:1px solid var(--md-outline-variant);border-bottom:1px solid var(--md-outline-variant);white-space:nowrap;">
+                                                                {{ $v['sku'] }}
+                                                                <div style="font-size:11px;font-weight:400;color:var(--md-on-surface-variant);margin-top:2px;">
+                                                                    Total: {{ number_format($v['qty'], 0, ',', '.') }} Qty &nbsp; {{ $rp($v['omzet']) }}
+                                                                </div>
+                                                            </td>
+                                                        @endif
+                                                        <td style="white-space:nowrap;{{ $sep }}">{{ $cleanStore($st['store_name']) }}</td>
+                                                        <td style="white-space:nowrap;{{ $sep }}">
+                                                            <span style="display:inline-flex;align-items:center;gap:6px;">
+                                                                {!! $channelIcon($st['channel_name']) !!}
+                                                                {{ $st['channel_name'] }}
+                                                            </span>
                                                         </td>
-                                                    @endif
-                                                    <td>{{ $cleanStore($st['store_name']) }}</td>
-                                                    <td>{{ $st['channel_name'] }}</td>
-                                                    <td class="text-end">{{ number_format($st['qty'], 0, ',', '.') }}</td>
-                                                    <td class="text-end" style="color:var(--md-primary);font-weight:600;">{{ $rp($st['omzet']) }}</td>
-                                                    <td class="text-end">{{ number_format($st['orders'], 0, ',', '.') }}</td>
-                                                    <td class="text-end" style="color:var(--md-on-surface-variant);">{{ $rp($st['orders'] > 0 ? $st['omzet'] / $st['orders'] : 0) }}</td>
-                                                </tr>
+                                                        <td style="text-align:right;{{ $sep }}">{{ number_format($st['qty'], 0, ',', '.') }}</td>
+                                                        <td style="text-align:right;color:var(--md-primary);font-weight:600;{{ $sep }}">{{ $rp($st['omzet']) }}</td>
+                                                        <td style="text-align:right;{{ $sep }}">{{ number_format($st['orders'], 0, ',', '.') }}</td>
+                                                    </tr>
+                                                @endforeach
                                             @endforeach
-                                        @endforeach
-                                    </tbody>
-                                </table>
+                                        </tbody>
+                                        @php $tfCell = 'padding:14px 16px;font-weight:700;background:var(--md-surface-container);border-top:2px solid var(--md-outline-variant);'; @endphp
+                                        <tfoot>
+                                            <tr>
+                                                <td colspan="3" style="{{ $tfCell }}color:var(--md-on-surface);">TOTAL</td>
+                                                <td style="{{ $tfCell }}text-align:right;">{{ number_format($p['qty'], 0, ',', '.') }}</td>
+                                                <td style="{{ $tfCell }}text-align:right;color:var(--md-primary);">{{ $rp($p['omzet']) }}</td>
+                                                <td style="{{ $tfCell }}text-align:right;">{{ number_format($p['orders'], 0, ',', '.') }}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -224,7 +272,9 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script>
+    // Global product search
     document.getElementById('productSearch')?.addEventListener('input', function (e) {
         const q = e.target.value.toLowerCase().trim();
         document.querySelectorAll('.sales-product-item').forEach(function (el) {
@@ -232,35 +282,77 @@
         });
     });
 
+    // Global sort (reorder product accordion items) — toggle asc/desc
     document.querySelectorAll('.sort-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
             const key = this.dataset.sort;
             const container = document.getElementById('salesAccordion');
             if (!container) return;
 
+            // Tombol aktif diklik lagi → balik arah; tombol baru → mulai dari desc
+            if (this.classList.contains('checked')) {
+                this.dataset.dir = this.dataset.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.dataset.dir = 'desc';
+            }
+            const dir = this.dataset.dir;
+
             const items = Array.from(container.querySelectorAll('.sales-product-item'));
-            items.sort((a, b) => Number(b.dataset[key]) - Number(a.dataset[key]));
+            items.sort((a, b) => {
+                const diff = Number(a.dataset[key]) - Number(b.dataset[key]);
+                return dir === 'asc' ? diff : -diff;
+            });
             items.forEach(el => container.appendChild(el));
 
+            // Reset tombol lain ke non-aktif + panah default
             document.querySelectorAll('.sort-btn').forEach(b => {
-                b.classList.remove('active', 'btn-md-tonal');
-                b.classList.add('btn-md-outlined');
+                if (b !== this) {
+                    b.classList.remove('checked');
+                    b.dataset.dir = 'desc';
+                    const ar = b.querySelector('.sort-arrow');
+                    if (ar) ar.textContent = '↓';
+                }
             });
-            this.classList.remove('btn-md-outlined');
-            this.classList.add('btn-md-tonal', 'active');
+            this.classList.add('checked');
+            const arrow = this.querySelector('.sort-arrow');
+            if (arrow) arrow.textContent = dir === 'asc' ? '↑' : '↓';
         });
     });
 
+    // Expand / collapse all
     document.getElementById('btnExpandAll')?.addEventListener('click', function () {
         document.querySelectorAll('.sales-product-item .accordion-collapse').forEach(function (el) {
             bootstrap.Collapse.getOrCreateInstance(el).show();
         });
     });
-
     document.getElementById('btnCollapseAll')?.addEventListener('click', function () {
         document.querySelectorAll('.sales-product-item .accordion-collapse').forEach(function (el) {
             bootstrap.Collapse.getOrCreateInstance(el).hide();
         });
+    });
+
+    // Per-accordion SKU variation search
+    document.addEventListener('input', function (e) {
+        if (!e.target.classList.contains('sku-search')) return;
+        const q = e.target.value.toLowerCase().trim();
+        const tbody = e.target.closest('.accordion-body').querySelector('tbody');
+        if (!tbody) return;
+        tbody.querySelectorAll('tr').forEach(function (row) {
+            row.style.display = (!q || (row.dataset.sku || '').includes(q)) ? '' : 'none';
+        });
+    });
+
+    // Excel export per product
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.export-csv-btn')) return;
+        const item = e.target.closest('.sales-product-item');
+        const parentSku = item.dataset.parentSku || 'export';
+        const rows = JSON.parse(item.dataset.export || '[]');
+        const headers = ['SKU Variation', 'Shop / Toko', 'Channel', 'Quantity', 'Omzet', 'Orders'];
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+        XLSX.writeFile(wb, parentSku + '_sales.xlsx');
     });
 </script>
 @endpush

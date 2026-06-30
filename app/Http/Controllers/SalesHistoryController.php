@@ -76,6 +76,7 @@ class SalesHistoryController extends Controller
             $products[$pkey]['variants'][$vkey]['omzet']  += (int) $r->omzet;
             $products[$pkey]['variants'][$vkey]['orders'] += (int) $r->orders;
             $products[$pkey]['variants'][$vkey]['stores'][] = [
+                'store_id'     => (int) $r->store_id,
                 'store_name'   => $r->store_name,
                 'channel_id'   => (int) $r->channel_id,
                 'channel_name' => self::CHANNELS[(int) $r->channel_id] ?? $r->channel_name,
