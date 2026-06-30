@@ -5,7 +5,7 @@
 @php
     $rp = fn ($n) => 'Rp ' . number_format((int) $n, 0, ',', '.');
     $today = \Carbon\Carbon::today();
-    $cleanStore = fn ($name) => preg_replace('/^Shop \| [^-]+-/', '', $name ?? '') ?: ($name ?? '—');
+    $cleanStore = fn ($name) => trim(preg_replace(['/^(?:Shop \| [^-]+-|[A-Z]+-)/i', '/\s*\(TTS\)$/i'], '', $name ?? '')) ?: ($name ?? '—');
 @endphp
 
 @section('content')
