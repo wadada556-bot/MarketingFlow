@@ -55,7 +55,7 @@ class SalesSyncService
         $now            = now();
 
         while (true) {
-            $resp   = $this->jubelio->getSalesOrdersPage($token, $channelIds, $fromIso, $toIso, $page, self::PAGE_SIZE);
+            $resp   = $this->jubelio->getSalesInvoicesPage($token, $channelIds, $fromIso, $toIso, $page, self::PAGE_SIZE);
             $orders = $resp['data'];
             $total ??= $resp['totalCount'];
 
@@ -64,7 +64,7 @@ class SalesSyncService
             foreach ($orders as $o) {
                 $collected++;
 
-                if (! empty($o['is_canceled'])) {
+                if (! empty($o['is_return'])) {
                     continue;
                 }
 
@@ -79,11 +79,11 @@ class SalesSyncService
 
             // Ambil detail semua order valid di halaman ini secara paralel
             if (! empty($valid)) {
-                $ids     = array_map(fn ($v) => (int) $v['order']['salesorder_id'], $valid);
-                $details = $this->jubelio->getOrderDetailsBatch($token, $ids, $this->concurrency);
+                $ids     = array_map(fn ($v) => (int) $v['order']['doc_id'], $valid);
+                $details = $this->jubelio->getInvoiceDetailsBatch($token, $ids, $this->concurrency);
 
                 foreach ($valid as $v) {
-                    $detail = $details[(int) $v['order']['salesorder_id']] ?? [];
+                    $detail = $details[(int) $v['order']['doc_id']] ?? [];
                     $this->accumulate($agg, $v['order'], $detail, $v['txDate'], $now);
                     $ordersHandled++;
                 }
@@ -135,10 +135,14 @@ class SalesSyncService
     private function accumulate(array &$agg, array $order, array $detail, string $txDate, Carbon $now): void
     {
         $storeId     = (int) ($order['store_id'] ?? 0);
-        $channelId   = (int) ($order['channel_id'] ?? 0);
-        $channelName = $order['channel_name'] ?? null;
+        $channelId   = (int) ($order['source'] ?? 0);  // invoices pakai 'source', bukan 'channel_id'
+        $channelName = match ($channelId) {
+            128    => 'Tokopedia',
+            131076 => 'TikTok',
+            default => (string) $channelId,
+        };
         $storeName   = $order['store_name'] ?? null;
-        $orderId     = $order['salesorder_id'] ?? null;
+        $orderId     = $order['doc_id'] ?? null;
 
         foreach (($detail['items'] ?? []) as $it) {
             if (! empty($it['is_canceled_item'])) {

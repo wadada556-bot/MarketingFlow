@@ -12,8 +12,8 @@ class JubelioApiService
     private const PAGE_SIZE = 100;
 
     // Endpoint Sales (dipakai fitur History Penjualan)
-    private const SALES_LIST_URL   = 'https://open.jubelio.com/core-api/sales/v2/orders/';
-    private const SALES_DETAIL_URL = 'https://open.jubelio.com/core-api/sales/orders/';
+    private const SALES_LIST_URL   = 'https://open.jubelio.com/core-api/sales/v2/invoices/';
+    private const SALES_DETAIL_URL = 'https://open.jubelio.com/core-api/sales/v2/invoices/';
 
     // Rate limit Jubelio = 600 req/menit. Pakai 560 sebagai plafon (sisakan margin).
     private const RATE_MAX_PER_MIN = 560;
@@ -50,13 +50,13 @@ class JubelioApiService
     }
 
     /**
-     * Ambil detail BANYAK order secara paralel (Http::pool) dengan menghormati
+     * Ambil detail BANYAK invoice secara paralel (Http::pool) dengan menghormati
      * rate-limit 560/menit. Jauh lebih cepat dari ambil satu per satu.
      *
-     * @param  array<int>  $ids
-     * @return array<int, array>  [salesorder_id => detail]
+     * @param  array<int>  $ids  doc_id dari endpoint invoices
+     * @return array<int, array>  [doc_id => detail]
      */
-    public function getOrderDetailsBatch(string $token, array $ids, int $concurrency = self::DETAIL_CONCURRENCY): array
+    public function getInvoiceDetailsBatch(string $token, array $ids, int $concurrency = self::DETAIL_CONCURRENCY): array
     {
         $results = [];
         $pending = array_values(array_unique($ids));
@@ -96,7 +96,7 @@ class JubelioApiService
         }
 
         if (! empty($pending)) {
-            throw new \RuntimeException('[Jubelio] gagal ambil detail untuk ' . count($pending) . ' order.');
+            throw new \RuntimeException('[Jubelio] gagal ambil detail untuk ' . count($pending) . ' invoice.');
         }
 
         return $results;
@@ -111,16 +111,16 @@ class JubelioApiService
     }
 
     /**
-     * Ambil satu halaman daftar order (header saja) dengan filter channel + tanggal.
-     * Semua status diambil (tidak difilter wms_status_type) agar penjualan terhitung
-     * begitu order masuk; order Batal disaring di SalesSyncService lewat flag is_canceled.
+     * Ambil satu halaman daftar invoice (header saja) dengan filter channel + tanggal.
+     * Semua status diambil; invoice retur disaring di SalesSyncService lewat flag is_return.
+     * Tiap record mengandung: doc_id, source (=channel_id), store_id, store_name, transaction_date, is_return.
      *
      * @param  array<int>  $channelIds        mis. [128, 131076]
      * @param  string      $fromIsoUtc        ISO UTC, mis. '2025-12-31T17:00:00.000Z'
      * @param  string      $toIsoUtc          ISO UTC
      * @return array{data: array, totalCount: int}
      */
-    public function getSalesOrdersPage(string $token, array $channelIds, string $fromIsoUtc, string $toIsoUtc, int $page, int $pageSize = self::PAGE_SIZE): array
+    public function getSalesInvoicesPage(string $token, array $channelIds, string $fromIsoUtc, string $toIsoUtc, int $page, int $pageSize = self::PAGE_SIZE): array
     {
         $query = [
             'q'                     => '',
@@ -143,13 +143,13 @@ class JubelioApiService
     }
 
     /**
-     * Ambil detail satu order (termasuk array items / SKU).
+     * Ambil detail satu invoice (termasuk array items / SKU).
      *
-     * @return array  full order; items ada di key 'items'
+     * @return array  full invoice; items ada di key 'items'
      */
-    public function getOrderDetail(string $token, int $salesorderId): array
+    public function getInvoiceDetail(string $token, int $docId): array
     {
-        return $this->getWithRetry($token, self::SALES_DETAIL_URL . $salesorderId);
+        return $this->getWithRetry($token, self::SALES_DETAIL_URL . $docId);
     }
 
     /**
