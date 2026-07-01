@@ -375,11 +375,17 @@ class JubelioApiService
     }
 
     /**
-     * Fetch stok (available) + HPP untuk SELURUH katalog Jubelio, dipaginasi (dipakai
-     * oleh job sync terjadwal — lihat SyncJubelioInventory). Jauh lebih efisien daripada
-     * getInventoryByParentSkus() per-SKU untuk sync massal.
+     * Fetch stok (available) + HPP + grouping produk untuk SELURUH katalog Jubelio,
+     * dipaginasi (dipakai job sync terjadwal — lihat SyncJubelioInventory). Jauh lebih
+     * efisien daripada getInventoryByParentSkus() per-SKU untuk sync massal.
      *
-     * @return array<string, array{stok: int, hpp: int}>  keyed by variant SKU
+     * parent_sku diturunkan dari `item_group_id` Jubelio (grouping otoritatif dari
+     * mereka, bukan tebakan regex "-N" per SKU) — ambil longest common prefix dari
+     * semua item_code dalam 1 grup. Ini juga menangkap label variasi (mis. "Merah")
+     * dari field `variation_values` untuk keperluan tampilan detail SKU.
+     *
+     * @return array<string, array{stok: int, hpp: int, parent_sku: string, item_group_id: int, variation_label: ?string}>
+     *         keyed by variant SKU
      */
     public function fetchAllInventory(): array
     {
@@ -389,7 +395,10 @@ class JubelioApiService
         $total  = null;
 
         while (true) {
-            $body  = $this->fetchPage($token, $page);
+            $body = $this->fetchPage($token, $page);
+            if (! is_array($body)) {
+                throw new \RuntimeException("[Jubelio] Respons tidak valid di halaman inventory {$page}.");
+            }
             $items = $body['data'] ?? [];
             $total ??= (int) ($body['totalCount'] ?? 0);
 
@@ -399,8 +408,10 @@ class JubelioApiService
                     continue;
                 }
                 $result[$code] = [
-                    'stok' => (int) ($item['total_stocks']['available'] ?? 0),
-                    'hpp'  => (int) round((float) ($item['last_cogs'] ?? $item['average_cost'] ?? 0)),
+                    'stok'            => (int) ($item['total_stocks']['available'] ?? 0),
+                    'hpp'             => (int) round((float) ($item['last_cogs'] ?? $item['average_cost'] ?? 0)),
+                    'item_group_id'   => (int) ($item['item_group_id'] ?? 0),
+                    'variation_label' => $item['variation_values'][0]['value'] ?? null,
                 ];
             }
 
@@ -409,10 +420,67 @@ class JubelioApiService
             }
 
             $page++;
-            sleep(1); // hindari rate-limit
+            sleep(2); // hindari rate-limit
         }
 
-        return $result;
+        return $this->attachParentSku($result);
+    }
+
+    /**
+     * Turunkan parent_sku dari grouping item_group_id (otoritatif dari Jubelio):
+     * longest common prefix dari semua item_code dalam 1 grup. Fallback ke regex
+     * "-N" per SKU kalau item_group_id-nya 0/kosong (jarang terjadi).
+     *
+     * @param  array<string, array{item_group_id: int}>  $items
+     * @return array<string, array{item_group_id: int}>  $items dengan tambahan key 'parent_sku'
+     */
+    private function attachParentSku(array $items): array
+    {
+        // PHP mengubah key array yang seluruhnya numerik (mis. item_code "12345") jadi
+        // int, bukan string — cast eksplisit di sini supaya longestCommonSkuPrefix()
+        // selalu menerima string.
+        $codesByGroup = [];
+        foreach ($items as $code => $data) {
+            $codesByGroup[$data['item_group_id']][] = (string) $code;
+        }
+
+        $parentSkuByGroup = [];
+        foreach ($codesByGroup as $groupId => $codes) {
+            $parentSkuByGroup[$groupId] = $this->longestCommonSkuPrefix($codes);
+        }
+
+        foreach ($items as $code => &$data) {
+            $codeStr = (string) $code;
+            $data['parent_sku'] = ($data['item_group_id'] > 0 && isset($parentSkuByGroup[$data['item_group_id']]))
+                ? $parentSkuByGroup[$data['item_group_id']]
+                : strtoupper(preg_replace('/-\d+$/', '', $codeStr) ?? $codeStr);
+        }
+        unset($data);
+
+        return $items;
+    }
+
+    /**
+     * Longest common prefix dari beberapa item_code (mis. T01-BSCW-1..8 -> T01-BSCW),
+     * trim trailing "-". Kalau cuma 1 SKU dalam grup (tanpa suffix), pakai kode itu sendiri.
+     *
+     * @param  string[]  $codes
+     */
+    private function longestCommonSkuPrefix(array $codes): string
+    {
+        $codes = array_map('strval', $codes);
+        sort($codes);
+        $first = reset($codes);
+        $last  = end($codes);
+        $len   = min(strlen($first), strlen($last));
+
+        $i = 0;
+        while ($i < $len && $first[$i] === $last[$i]) {
+            $i++;
+        }
+        $prefix = rtrim(substr($first, 0, $i), '-');
+
+        return strtoupper($prefix !== '' ? $prefix : $first);
     }
 
     /**
@@ -431,7 +499,10 @@ class JubelioApiService
         $poPageSize  = self::PAGE_SIZE * 2;
 
         while (true) {
-            $body  = $this->fetchPoPage($token, $page, $poPageSize);
+            $body = $this->fetchPoPage($token, $page, $poPageSize);
+            if (! is_array($body)) {
+                throw new \RuntimeException("[Jubelio] Respons tidak valid di halaman PO {$page}.");
+            }
             $items = $body['data'] ?? [];
             $total ??= (int) ($body['totalCount'] ?? 0);
 
@@ -454,7 +525,7 @@ class JubelioApiService
             }
 
             $page++;
-            sleep(1); // hindari rate-limit
+            sleep(2); // hindari rate-limit
         }
 
         return $result;
@@ -465,12 +536,12 @@ class JubelioApiService
      */
     private function fetchPoPage(string $token, int $page, int $pageSize): array
     {
-        $attempts       = 3;
+        $attempts       = 5;
         $lastException  = null;
 
         for ($i = 0; $i < $attempts; $i++) {
             if ($i > 0) {
-                sleep(5 * $i);
+                sleep(10 * $i); // 10s, 20s, 30s, 40s
             }
             try {
                 $response = Http::withoutVerifying()->timeout(90)
@@ -498,16 +569,16 @@ class JubelioApiService
     }
 
     /**
-     * Fetch satu halaman inventory dengan retry otomatis (3x, backoff 5 detik).
+     * Fetch satu halaman inventory dengan retry otomatis (5x, backoff bertingkat).
      */
     private function fetchPage(string $token, int $page): array
     {
-        $attempts = 3;
+        $attempts = 5;
         $lastException = null;
 
         for ($i = 0; $i < $attempts; $i++) {
             if ($i > 0) {
-                sleep(5 * $i); // backoff: 5s, 10s
+                sleep(10 * $i); // backoff: 10s, 20s, 30s, 40s
             }
             try {
                 $response = Http::withoutVerifying()->timeout(90)

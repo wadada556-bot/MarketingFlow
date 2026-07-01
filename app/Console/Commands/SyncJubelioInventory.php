@@ -40,19 +40,25 @@ class SyncJubelioInventory extends Command
         $rows = [];
         foreach ($inventory as $sku => $data) {
             $rows[] = [
-                'sku_code'   => $sku,
-                'parent_sku' => strtoupper(preg_replace('/-\d+$/', '', $sku) ?? $sku),
-                'stok'       => $data['stok'],
-                'hpp'        => $data['hpp'],
-                'po_qty'     => $po[$sku] ?? 0,
-                'synced_at'  => $now->toDateTimeString(),
-                'created_at' => $now->toDateTimeString(),
-                'updated_at' => $now->toDateTimeString(),
+                'sku_code'        => $sku,
+                'parent_sku'      => $data['parent_sku'],
+                'item_group_id'   => $data['item_group_id'] ?: null,
+                'variation_label' => $data['variation_label'],
+                'stok'            => $data['stok'],
+                'hpp'             => $data['hpp'],
+                'po_qty'          => $po[$sku] ?? 0,
+                'synced_at'       => $now->toDateTimeString(),
+                'created_at'      => $now->toDateTimeString(),
+                'updated_at'      => $now->toDateTimeString(),
             ];
         }
 
         foreach (array_chunk($rows, 500) as $chunk) {
-            JubelioInventory::upsert($chunk, ['sku_code'], ['parent_sku', 'stok', 'hpp', 'po_qty', 'synced_at', 'updated_at']);
+            JubelioInventory::upsert(
+                $chunk,
+                ['sku_code'],
+                ['parent_sku', 'item_group_id', 'variation_label', 'stok', 'hpp', 'po_qty', 'synced_at', 'updated_at']
+            );
         }
 
         $this->info('[Jubelio Inventory Sync] Selesai: ' . count($rows) . ' SKU di-sync.');
