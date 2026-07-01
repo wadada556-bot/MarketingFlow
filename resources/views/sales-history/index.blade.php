@@ -158,13 +158,17 @@
                                 data-bs-toggle="collapse" data-bs-target="#{{ $pid }}"
                                 style="background:var(--md-surface-container-lowest);box-shadow:none;">
                             <div class="d-flex flex-wrap align-items-center w-100" style="gap:16px;padding-right:16px;">
-                                <div style="min-width:0;">
+                                <div style="min-width:0;flex:1;">
                                     <div style="font-weight:700;color:var(--md-on-surface);font-size:19px;letter-spacing:.1px;">{{ $p['parent_sku'] }}</div>
                                     <div class="mt-2 d-flex gap-1 flex-wrap">
                                         @foreach ($p['channels'] as $cName)
                                             <span class="md-chip secondary">{!! $channelIcon($cName) !!} {{ $cName }}</span>
                                         @endforeach
                                     </div>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div style="font-size:11px;color:var(--md-on-surface-variant);font-weight:500;">Total Qty Terjual</div>
+                                    <div style="font-size:18px;font-weight:700;color:var(--md-primary);">{{ number_format($p['qty'], 0, ',', '.') }}</div>
                                 </div>
                             </div>
                         </button>
