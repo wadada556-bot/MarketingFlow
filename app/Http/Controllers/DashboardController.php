@@ -5,11 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\FilterDateRangeRequest;
 use App\Models\DailyAdStore;
 use App\Models\DailyProductAd;
+use App\Models\JubelioInventory;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\DailyStoreStat;
 use App\Services\DailySalesQueryService;
-use App\Services\JubelioApiService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -17,7 +17,6 @@ class DashboardController extends Controller
 {
     private const QTY_DANGER      = 100;
     private const QTY_WARNING     = 300;
-    private const STOCK_CACHE_TTL = 900;
     private const AGG_CACHE_TTL      = 300; // cache GMV/pesanan dashboard (5 menit)
     private const AGG_ROAS_CACHE_TTL = 360; // cache ROAS/ad-spend (stagger agar tidak expire bersamaan)
 
@@ -42,7 +41,6 @@ class DashboardController extends Controller
     ];
 
     public function __construct(
-        private readonly JubelioApiService $jubelioApiService,
         private readonly DailySalesQueryService $dailySalesQueryService,
     ) {}
 
@@ -506,10 +504,6 @@ class DashboardController extends Controller
      */
     private function buildStockAlerts(): array
     {
-        // Bisa ada 2 fase panggilan Jubelio berurutan (stok+HPP, lalu PO) saat cache
-        // kosong — masing-masing SKU 1 request, jadi butuh lebih dari default 30s.
-        set_time_limit(120);
-
         $stockAlerts         = [];
         $stockAlertCount     = 0;
         $stockApiUnavailable = false;
@@ -528,36 +522,26 @@ class DashboardController extends Controller
         $parentSkus = $products->pluck('parent_sku')->unique()->values()->all();
 
         if (!empty($parentSkus)) {
-            $cacheKey = 'dashboard_stock_' . md5(implode(',', $parentSkus));
-            $cached   = Cache::get($cacheKey);
+            // Stok + HPP dari tabel lokal jubelio_inventory (disync berkala via
+            // jubelio:sync-inventory) — query DB murah, tidak perlu cache/live API lagi.
+            $rows = JubelioInventory::whereIn('parent_sku', array_map('strtoupper', $parentSkus))->get();
 
-            if ($cached !== null) {
-                $stockData = $cached['stock'];
-                $hppMap    = $cached['hpp'];
-            } else {
-                // Stok + HPP dari Jubelio inventory API. Timeout di service (30 detik);
-                // jika Jubelio down, service mengembalikan array kosong.
-                try {
-                    $inventory = $this->jubelioApiService->getInventoryByParentSkus($parentSkus);
-                } catch (\Throwable) {
-                    $inventory = ['stock' => [], 'hpp' => []];
-                }
-
-                if (!empty($inventory['stock'])) {
-                    $stockData = $inventory['stock'];
-                    $hppMap    = $inventory['hpp'];
-                    Cache::put($cacheKey, ['stock' => $stockData, 'hpp' => $hppMap], self::STOCK_CACHE_TTL);
-                } else {
-                    $stockApiUnavailable = true;
-                    $stockData = [];
-                    $hppMap    = [];
-                }
+            if ($rows->isEmpty() && JubelioInventory::count() === 0) {
+                // Tabel belum pernah disync sama sekali
+                $stockApiUnavailable = true;
             }
 
             if (!$stockApiUnavailable) {
+                $stockData = [];
+                $hppMap    = [];
+                foreach ($rows as $row) {
+                    $stockData[$row->parent_sku][] = ['sku' => $row->sku_code, 'qty' => $row->stok];
+                    $hppMap[$row->sku_code]         = $row->hpp;
+                }
+
                 foreach ($products as $product) {
                     $parentSku     = $product->parent_sku;
-                    $allVariants   = $stockData[$parentSku] ?? [];
+                    $allVariants   = $stockData[strtoupper($parentSku)] ?? [];
                     $alertVariants = array_filter($allVariants, fn ($v) => $v['qty'] <= self::QTY_WARNING);
 
                     if (empty($alertVariants)) {
@@ -630,15 +614,13 @@ class DashboardController extends Controller
                 return $this->dailySalesQueryService->getForParentSkus($alertSkus)['total'];
             });
 
-            // ── PO data (masih ERP lama, belum ada API pengganti) ──────────
-            $poCacheKey = 'dashboard_po_' . md5(implode(',', $alertSkus));
-            $poData = Cache::remember($poCacheKey, self::STOCK_CACHE_TTL, function () use ($alertSkus) {
-                try {
-                    return $this->jubelioApiService->getPoByParentSkus($alertSkus);
-                } catch (\Throwable) {
-                    return [];
+            // ── PO data — dari jubelio_inventory lokal (sudah di-query di atas sbg $rows) ──
+            $poData = [];
+            foreach ($rows as $row) {
+                if (in_array($row->parent_sku, array_map('strtoupper', $alertSkus), true)) {
+                    $poData[$row->parent_sku][$row->sku_code] = $row->po_qty;
                 }
-            });
+            }
 
             foreach ($stockAlerts as &$_a) {
                 $skuSales90d     = $salesData[$_a['parent_sku']]['90d'] ?? [];
@@ -650,7 +632,7 @@ class DashboardController extends Controller
                 $rank2  = $sorted->keys()->get(1);
                 $rank3  = $sorted->keys()->get(2);
 
-                $variantPoMap = $poData[$_a['parent_sku']] ?? [];
+                $variantPoMap = $poData[strtoupper($_a['parent_sku'])] ?? [];
 
                 $_a['variants'] = array_map(function ($v) use ($rank1, $rank2, $rank3, $variantPoMap) {
                     $v['rank_90d'] = match (true) {

@@ -375,6 +375,129 @@ class JubelioApiService
     }
 
     /**
+     * Fetch stok (available) + HPP untuk SELURUH katalog Jubelio, dipaginasi (dipakai
+     * oleh job sync terjadwal — lihat SyncJubelioInventory). Jauh lebih efisien daripada
+     * getInventoryByParentSkus() per-SKU untuk sync massal.
+     *
+     * @return array<string, array{stok: int, hpp: int}>  keyed by variant SKU
+     */
+    public function fetchAllInventory(): array
+    {
+        $token  = $this->login();
+        $result = [];
+        $page   = 1;
+        $total  = null;
+
+        while (true) {
+            $body  = $this->fetchPage($token, $page);
+            $items = $body['data'] ?? [];
+            $total ??= (int) ($body['totalCount'] ?? 0);
+
+            foreach ($items as $item) {
+                $code = trim((string) ($item['item_code'] ?? ''));
+                if ($code === '') {
+                    continue;
+                }
+                $result[$code] = [
+                    'stok' => (int) ($item['total_stocks']['available'] ?? 0),
+                    'hpp'  => (int) round((float) ($item['last_cogs'] ?? $item['average_cost'] ?? 0)),
+                ];
+            }
+
+            if (count($result) >= $total || empty($items)) {
+                break;
+            }
+
+            $page++;
+            sleep(1); // hindari rate-limit
+        }
+
+        return $result;
+    }
+
+    /**
+     * Fetch PO inbound outstanding (qty_in_base - qty_fulfilled) untuk SELURUH katalog,
+     * dipaginasi. Dipakai job sync terjadwal — lihat SyncJubelioInventory.
+     *
+     * @return array<string, int>  [variantSku => qty_outstanding]
+     */
+    public function fetchAllPo(): array
+    {
+        $token       = $this->login();
+        $result      = [];
+        $page        = 1;
+        $total       = null;
+        $fetchedRows = 0;
+        $poPageSize  = self::PAGE_SIZE * 2;
+
+        while (true) {
+            $body  = $this->fetchPoPage($token, $page, $poPageSize);
+            $items = $body['data'] ?? [];
+            $total ??= (int) ($body['totalCount'] ?? 0);
+
+            foreach ($items as $item) {
+                $code = trim((string) ($item['item_code'] ?? ''));
+                if ($code === '') {
+                    continue;
+                }
+                $ordered     = (float) ($item['qty_in_base']   ?? 0);
+                $fulfilled   = (float) ($item['qty_fulfilled'] ?? 0);
+                $outstanding = max(0, (int) round($ordered - $fulfilled));
+
+                $result[$code] = ($result[$code] ?? 0) + $outstanding;
+            }
+
+            $fetchedRows += count($items);
+
+            if ($fetchedRows >= $total || empty($items)) {
+                break;
+            }
+
+            $page++;
+            sleep(1); // hindari rate-limit
+        }
+
+        return $result;
+    }
+
+    /**
+     * Fetch satu halaman PO inbound-not-fulfilled dengan retry otomatis.
+     */
+    private function fetchPoPage(string $token, int $page, int $pageSize): array
+    {
+        $attempts       = 3;
+        $lastException  = null;
+
+        for ($i = 0; $i < $attempts; $i++) {
+            if ($i > 0) {
+                sleep(5 * $i);
+            }
+            try {
+                $response = Http::withoutVerifying()->timeout(90)
+                    ->withHeaders(['Authorization' => $token, 'accept' => 'application/json'])
+                    ->get(self::PO_URL, [
+                        'page'           => $page,
+                        'page_size'      => $pageSize,
+                        'sort_by'        => 'item_name',
+                        'sort_direction' => 'ASC',
+                        'q'              => '',
+                        'brand'          => '',
+                        'otherBrand'     => '',
+                        'categoryId'     => '',
+                    ]);
+
+                $response->throw();
+                return $response->json();
+            } catch (\Throwable $e) {
+                $lastException = $e;
+                Log::warning("[Jubelio] Retry {$i}/{$attempts} PO page {$page}: {$e->getMessage()}");
+            }
+        }
+
+        throw $lastException;
+    }
+
+    /**
      * Fetch satu halaman inventory dengan retry otomatis (3x, backoff 5 detik).
      */
     private function fetchPage(string $token, int $page): array
