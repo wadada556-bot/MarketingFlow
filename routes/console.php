@@ -10,9 +10,9 @@ Artisan::command('inspire', function () {
 // ── Jadwal otomatis ────────────────────────────────────────────────────────
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('hpp:sync')->dailyAt('08:30')->timezone('Asia/Jakarta');
-Schedule::command('notify:stock-check')->dailyAt('09:00')->timezone('Asia/Jakarta');
-Schedule::command('notify:stock-check')->dailyAt('16:00')->timezone('Asia/Jakarta');
+Schedule::command('hpp:sync')->dailyAt('08:30')->timezone('Asia/Jakarta')->withoutOverlapping();
+Schedule::command('notify:stock-check')->dailyAt('09:00')->timezone('Asia/Jakarta')->withoutOverlapping();
+Schedule::command('notify:stock-check')->dailyAt('16:00')->timezone('Asia/Jakarta')->withoutOverlapping();
 // Stok+HPP+PO Jubelio (full katalog) -> tabel jubelio_inventory, dipakai Product Ads & Dashboard
 Schedule::command('jubelio:sync-inventory')->everyThirtyMinutes()->withoutOverlapping();
 // Rolling 3 hari: tangkap order yang baru jadi COMPLETED tanpa men-scan seluruh bulan

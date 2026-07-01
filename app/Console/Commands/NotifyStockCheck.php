@@ -2,11 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Models\JubelioInventory;
 use App\Models\NotificationLog;
 use App\Models\ProductAd;
 use App\Models\User;
 use App\Notifications\StockAlertNotification;
-use App\Services\ErpApiService;
+use App\Services\DailySalesQueryService;
 use Illuminate\Console\Command;
 
 class NotifyStockCheck extends Command
@@ -14,7 +15,7 @@ class NotifyStockCheck extends Command
     protected $signature   = 'notify:stock-check';
     protected $description = 'Cek stok produk aktif: best seller tanpa PO (urgent) dan stok rendah yg sudah ada PO (info)';
 
-    public function handle(ErpApiService $erp): int
+    public function handle(DailySalesQueryService $dailySalesQueryService): int
     {
         $this->info('[Stock Check] Mengambil produk aktif...');
 
@@ -32,23 +33,34 @@ class NotifyStockCheck extends Command
             return self::SUCCESS;
         }
 
-        $this->info('[Stock Check] Fetch ERP untuk ' . count($parentSkus) . ' parent SKU...');
+        $this->info('[Stock Check] Ambil stok+PO dari jubelio_inventory untuk ' . count($parentSkus) . ' parent SKU...');
 
-        try {
-            $data = $erp->getStockAndSalesByParentSkus($parentSkus);
-        } catch (\Throwable $e) {
-            $this->error("[Stock Check] Gagal ambil data ERP: {$e->getMessage()}");
-            return self::FAILURE;
+        // Stok + PO dari tabel lokal jubelio_inventory (disync jubelio:sync-inventory).
+        // Kolom DB selalu uppercase -> map balik ke casing asli $parentSkus.
+        $rows = JubelioInventory::whereIn('parent_sku', array_map('strtoupper', $parentSkus))->get();
+
+        $stockByUpper = [];
+        $poByUpper    = [];
+        foreach ($rows as $row) {
+            $stockByUpper[$row->parent_sku][]            = ['sku' => $row->sku_code, 'qty' => $row->stok];
+            $poByUpper[$row->parent_sku][$row->sku_code]  = $row->po_qty;
         }
+
+        $salesTotal = $dailySalesQueryService->getForParentSkus($parentSkus)['total'];
 
         // Part 1: best seller (ada penjualan 90 hari) + stok rendah + TANPA PO → urgent, perlu tindakan
         $urgentNoPo = [];
         // Part 2: stok rendah + SUDAH ADA PO → info saja
         $withPo     = [];
 
-        foreach ($data['stock'] as $parentSku => $variants) {
-            $poMap    = $data['po'][$parentSku]           ?? [];
-            $sales90d = $data['sales'][$parentSku]['90d'] ?? [];
+        foreach ($parentSkus as $parentSku) {
+            $variants = $stockByUpper[strtoupper($parentSku)] ?? [];
+            if (empty($variants)) {
+                continue;
+            }
+
+            $poMap    = $poByUpper[strtoupper($parentSku)] ?? [];
+            $sales90d = $salesTotal[$parentSku]['90d']     ?? [];
 
             foreach ($variants as $v) {
                 $sku          = $v['sku'];
