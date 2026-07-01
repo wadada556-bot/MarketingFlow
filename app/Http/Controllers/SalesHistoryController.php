@@ -18,6 +18,11 @@ class SalesHistoryController extends Controller
     {
         $today = Carbon::today();
 
+        // Batas data yang benar-benar tersedia: tanggal tersedia awal s/d hari ini
+        $earliestDate = DailySkuSales::min('sales_date');
+        $minDate      = $earliestDate ? Carbon::parse($earliestDate)->toDateString() : $today->toDateString();
+        $maxDate      = $today->toDateString();
+
         // Default: awal tahun berjalan s/d hari ini (lihat seluruh histori tahun ini)
         $from = $request->query('date_from')
             ? Carbon::parse($request->query('date_from'))->toDateString()
@@ -25,6 +30,12 @@ class SalesHistoryController extends Controller
         $to = $request->query('date_to')
             ? Carbon::parse($request->query('date_to'))->toDateString()
             : $today->toDateString();
+
+        // Batasi ke rentang data yang tersedia (tidak boleh sebelum data terlama / setelah hari ini)
+        $from = max($from, $minDate);
+        $from = min($from, $maxDate);
+        $to   = min($to, $maxDate);
+        $to   = max($to, $minDate);
 
         // Halaman ini khusus menampilkan channel TikTok
         $tiktokId = 131076;
@@ -113,6 +124,8 @@ class SalesHistoryController extends Controller
             'totals'       => $totals,
             'from'         => $from,
             'to'           => $to,
+            'minDate'      => $minDate,
+            'maxDate'      => $maxDate,
             'storeId'      => $storeId,
             'storeColumns' => $storeColumns,
             'storeOptions' => $storeOptions,
