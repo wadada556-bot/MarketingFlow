@@ -8,7 +8,9 @@ use App\Models\DailyProductAd;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\DailyStoreStat;
+use App\Services\DailySalesQueryService;
 use App\Services\ErpApiService;
+use App\Services\JubelioApiService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -40,7 +42,11 @@ class DashboardController extends Controller
         'moonklaz'   => '#2CA4C0',
     ];
 
-    public function __construct(private readonly ErpApiService $erpApiService) {}
+    public function __construct(
+        private readonly ErpApiService $erpApiService,
+        private readonly JubelioApiService $jubelioApiService,
+        private readonly DailySalesQueryService $dailySalesQueryService,
+    ) {}
 
     public function index(FilterDateRangeRequest $request)
     {
@@ -517,43 +523,36 @@ class DashboardController extends Controller
             ->limit(100)
             ->get();
 
-        $parentSkus      = $products->pluck('parent_sku')->unique()->values()->all();
-        $prefetchedSales = null;
-        $prefetchedPo    = null;
+        $parentSkus = $products->pluck('parent_sku')->unique()->values()->all();
 
         if (!empty($parentSkus)) {
             $cacheKey = 'dashboard_stock_' . md5(implode(',', $parentSkus));
             $cached   = Cache::get($cacheKey);
 
             if ($cached !== null) {
-                $stockData = $cached;
+                $stockData = $cached['stock'];
+                $hppMap    = $cached['hpp'];
             } else {
-                // Fetch stock + sales + PO dalam 1 Http::pool paralel.
-                // Timeout di service (20 detik); jika ERP down, service mengembalikan array kosong.
+                // Stok + HPP dari Jubelio inventory API. Timeout di service (30 detik);
+                // jika Jubelio down, service mengembalikan array kosong.
                 try {
-                    $combined = $this->erpApiService->getStockAndSalesByParentSkus($parentSkus);
+                    $inventory = $this->jubelioApiService->getInventoryByParentSkus($parentSkus);
                 } catch (\Throwable) {
-                    $combined = ['stock' => [], 'sales' => [], 'po' => []];
+                    $inventory = ['stock' => [], 'hpp' => []];
                 }
 
-                if (!empty($combined['stock'])) {
-                    Cache::put($cacheKey, $combined['stock'], self::STOCK_CACHE_TTL);
-                    $stockData       = $combined['stock'];
-                    $prefetchedSales = $combined['sales'];
-                    $prefetchedPo    = $combined['po'];
+                if (!empty($inventory['stock'])) {
+                    $stockData = $inventory['stock'];
+                    $hppMap    = $inventory['hpp'];
+                    Cache::put($cacheKey, ['stock' => $stockData, 'hpp' => $hppMap], self::STOCK_CACHE_TTL);
                 } else {
                     $stockApiUnavailable = true;
                     $stockData = [];
+                    $hppMap    = [];
                 }
             }
 
             if (!$stockApiUnavailable) {
-                // Bulk HPP lookup sekali untuk semua variant SKU (1 DB query)
-                $allVariantSkus = collect($stockData)
-                    ->flatMap(fn ($variants) => array_column($variants, 'sku'))
-                    ->unique()->values()->all();
-                $hppMap = ErpApiService::getHppMap($allVariantSkus);
-
                 foreach ($products as $product) {
                     $parentSku     = $product->parent_sku;
                     $allVariants   = $stockData[$parentSku] ?? [];
@@ -621,30 +620,23 @@ class DashboardController extends Controller
 
         if (!$stockApiUnavailable && !empty($stockAlerts)) {
             $alertSkus     = array_column($stockAlerts, 'parent_sku');
-            $salesCacheKey = 'dashboard_tiktok_variant_sales_' . md5(implode(',', $alertSkus));
+            $salesCacheKey = 'dashboard_local_sales_' . md5(implode(',', $alertSkus));
 
-            if ($prefetchedSales !== null) {
-                // Sudah di-fetch bersamaan dengan stock — tidak perlu ERP call kedua
-                $salesData = array_intersect_key($prefetchedSales, array_flip($alertSkus));
-                Cache::put($salesCacheKey, $salesData, 1800);
-            } else {
-                $salesData = Cache::remember($salesCacheKey, 1800, function () use ($alertSkus) {
-                    try {
-                        return $this->erpApiService->getVariantSalesByParentSkus($alertSkus);
-                    } catch (\Throwable) {
-                        return [];
-                    }
-                });
-            }
+            // Sales dari daily_sku_sales lokal (bukan ERP lagi) — query DB murah, cache tetap
+            // dipasang untuk menghindari query berulang tiap load dashboard.
+            $salesData = Cache::remember($salesCacheKey, 1800, function () use ($alertSkus) {
+                return $this->dailySalesQueryService->getForParentSkus($alertSkus)['total'];
+            });
 
-            // ── PO data ──────────────────────────────────────────────────
+            // ── PO data (masih ERP lama, belum ada API pengganti) ──────────
             $poCacheKey = 'dashboard_po_' . md5(implode(',', $alertSkus));
-            if ($prefetchedPo !== null) {
-                $poData = array_intersect_key($prefetchedPo, array_flip($alertSkus));
-                Cache::put($poCacheKey, $poData, self::STOCK_CACHE_TTL);
-            } else {
-                $poData = Cache::get($poCacheKey, []);
-            }
+            $poData = Cache::remember($poCacheKey, self::STOCK_CACHE_TTL, function () use ($alertSkus) {
+                try {
+                    return $this->erpApiService->getPoByParentSkus($alertSkus);
+                } catch (\Throwable) {
+                    return [];
+                }
+            });
 
             foreach ($stockAlerts as &$_a) {
                 $skuSales90d     = $salesData[$_a['parent_sku']]['90d'] ?? [];
