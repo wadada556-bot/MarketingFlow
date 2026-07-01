@@ -37,62 +37,47 @@ class SalesHistoryController extends Controller
             ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
             ->selectRaw('parent_sku, sku, store_id, store_name, channel_id, channel_name,
                          MAX(product_name) as product_name,
-                         SUM(qty_terjual) as qty, SUM(omzet) as omzet, SUM(order_count) as orders')
+                         SUM(qty_terjual) as qty')
             ->groupBy('parent_sku', 'sku', 'store_id', 'store_name', 'channel_id', 'channel_name')
             ->get();
 
-        // Susun bertingkat: produk (parent_sku) → variasi (sku) → toko
+        // Susun bertingkat: produk (parent_sku) → variasi (sku); qty dipivot per toko
         $products = [];
         foreach ($rows as $r) {
             $pkey = $r->parent_sku ?: $r->sku;
+            $sid  = (int) $r->store_id;
+            $qty  = (int) $r->qty;
 
             $products[$pkey] ??= [
                 'parent_sku'   => $pkey,
                 'product_name' => $r->product_name,
                 'qty'          => 0,
-                'omzet'        => 0,
-                'orders'       => 0,
                 'channels'     => [],
+                'store_qty'    => [],   // total per toko (untuk baris TOTAL)
                 'variants'     => [],
             ];
 
-            $products[$pkey]['qty']    += (int) $r->qty;
-            $products[$pkey]['omzet']  += (int) $r->omzet;
-            $products[$pkey]['orders'] += (int) $r->orders;
+            $products[$pkey]['qty'] += $qty;
             $products[$pkey]['channels'][(int) $r->channel_id] = self::CHANNELS[(int) $r->channel_id]
                 ?? ($r->channel_name ?: $r->channel_id);
+            $products[$pkey]['store_qty'][$sid] = ($products[$pkey]['store_qty'][$sid] ?? 0) + $qty;
             if (empty($products[$pkey]['product_name']) && $r->product_name) {
                 $products[$pkey]['product_name'] = $r->product_name;
             }
 
             $vkey = $r->sku;
             $products[$pkey]['variants'][$vkey] ??= [
-                'sku'    => $r->sku,
-                'qty'    => 0,
-                'omzet'  => 0,
-                'orders' => 0,
-                'stores' => [],
+                'sku'       => $r->sku,
+                'qty'       => 0,
+                'store_qty' => [],       // qty per toko untuk variasi ini
             ];
-            $products[$pkey]['variants'][$vkey]['qty']    += (int) $r->qty;
-            $products[$pkey]['variants'][$vkey]['omzet']  += (int) $r->omzet;
-            $products[$pkey]['variants'][$vkey]['orders'] += (int) $r->orders;
-            $products[$pkey]['variants'][$vkey]['stores'][] = [
-                'store_id'     => (int) $r->store_id,
-                'store_name'   => $r->store_name,
-                'channel_id'   => (int) $r->channel_id,
-                'channel_name' => self::CHANNELS[(int) $r->channel_id] ?? $r->channel_name,
-                'qty'          => (int) $r->qty,
-                'omzet'        => (int) $r->omzet,
-                'orders'       => (int) $r->orders,
-            ];
+            $products[$pkey]['variants'][$vkey]['qty'] += $qty;
+            $products[$pkey]['variants'][$vkey]['store_qty'][$sid]
+                = ($products[$pkey]['variants'][$vkey]['store_qty'][$sid] ?? 0) + $qty;
         }
 
-        // Urut: produk & variasi by qty desc; toko by qty desc
+        // Urut: produk & variasi by qty desc
         foreach ($products as &$p) {
-            foreach ($p['variants'] as &$v) {
-                usort($v['stores'], fn ($a, $b) => $b['qty'] <=> $a['qty']);
-            }
-            unset($v);
             uasort($p['variants'], fn ($a, $b) => $b['qty'] <=> $a['qty']);
         }
         unset($p);
@@ -100,19 +85,27 @@ class SalesHistoryController extends Controller
 
         // Total keseluruhan
         $totals = [
-            'omzet'    => array_sum(array_column($products, 'omzet')),
             'qty'      => array_sum(array_column($products, 'qty')),
-            'orders'   => array_sum(array_column($products, 'orders')),
             'products' => count($products),
         ];
 
-        // Opsi filter toko (hanya toko TikTok)
+        // Kolom toko = seluruh toko TikTok (stabil di tiap tabel; sel kosong → "-")
+        $storeColumns = DailySkuSales::query()
+            ->selectRaw('store_id, MAX(store_name) as store_name')
+            ->where('channel_id', $tiktokId)
+            ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
+            ->whereNotNull('store_name')
+            ->groupBy('store_id')
+            ->orderByRaw('MAX(store_name)')
+            ->get();
+
+        // Opsi filter toko (semua toko TikTok)
         $storeOptions = DailySkuSales::query()
-            ->select('store_id', 'store_name')
+            ->selectRaw('store_id, MAX(store_name) as store_name')
             ->where('channel_id', $tiktokId)
             ->whereNotNull('store_name')
-            ->distinct()
-            ->orderBy('store_name')
+            ->groupBy('store_id')
+            ->orderByRaw('MAX(store_name)')
             ->get();
 
         return view('sales-history.index', [
@@ -121,6 +114,7 @@ class SalesHistoryController extends Controller
             'from'         => $from,
             'to'           => $to,
             'storeId'      => $storeId,
+            'storeColumns' => $storeColumns,
             'storeOptions' => $storeOptions,
         ]);
     }

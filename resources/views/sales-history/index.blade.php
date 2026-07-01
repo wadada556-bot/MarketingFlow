@@ -137,13 +137,13 @@
                     $pid = 'p_' . md5($p['parent_sku']);
                     $exportRows = [];
                     foreach ($p['variants'] as $v) {
-                        foreach ($v['stores'] as $st) {
-                            $exportRows[] = [
-                                $v['sku'],
-                                $cleanStore($st['store_name']),
-                                $st['qty'],
-                            ];
+                        $row = [$v['sku']];
+                        foreach ($storeColumns as $sc) {
+                            $q = $v['store_qty'][(int) $sc->store_id] ?? null;
+                            $row[] = $q === null ? '-' : $q;
                         }
+                        $row[] = $v['qty'];
+                        $exportRows[] = $row;
                     }
                 @endphp
                 <div class="accordion-item sales-product-item"
@@ -190,36 +190,42 @@
                                         <thead>
                                             <tr>
                                                 <th style="{{ $thBg }}">SKU Variation</th>
-                                                <th style="{{ $thBg }}">Nama Toko</th>
-                                                <th style="text-align:right;{{ $thBg }}">Total Qty Terjual</th>
+                                                @foreach ($storeColumns as $sc)
+                                                    <th style="text-align:right;white-space:nowrap;{{ $thBg }}">{{ $cleanStore($sc->store_name) }}</th>
+                                                @endforeach
+                                                <th style="text-align:right;white-space:nowrap;{{ $thBg }}">Total</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @foreach ($p['variants'] as $v)
-                                                @php $sCount = count($v['stores']); @endphp
-                                                @foreach ($v['stores'] as $i => $st)
-                                                    @php $sep = ($i === $sCount - 1) ? 'border-bottom:1px solid var(--md-outline-variant);' : ''; @endphp
-                                                    <tr data-sku="{{ strtolower($v['sku']) }}">
-                                                        @if ($i === 0)
-                                                            <td rowspan="{{ $sCount }}"
-                                                                style="font-weight:600;border-right:1px solid var(--md-outline-variant);border-bottom:1px solid var(--md-outline-variant);white-space:nowrap;">
-                                                                {{ $v['sku'] }}
-                                                                <div style="font-size:11px;font-weight:400;color:var(--md-on-surface-variant);margin-top:2px;">
-                                                                    Total: {{ number_format($v['qty'], 0, ',', '.') }} Qty
-                                                                </div>
-                                                            </td>
-                                                        @endif
-                                                        <td style="white-space:nowrap;{{ $sep }}">{{ $cleanStore($st['store_name']) }}</td>
-                                                        <td style="text-align:right;{{ $sep }}">{{ number_format($st['qty'], 0, ',', '.') }}</td>
-                                                    </tr>
-                                                @endforeach
+                                                <tr data-sku="{{ strtolower($v['sku']) }}">
+                                                    <td style="font-weight:600;border-right:1px solid var(--md-outline-variant);border-bottom:1px solid var(--md-outline-variant);white-space:nowrap;">
+                                                        {{ $v['sku'] }}
+                                                    </td>
+                                                    @foreach ($storeColumns as $sc)
+                                                        @php $q = $v['store_qty'][(int) $sc->store_id] ?? null; @endphp
+                                                        <td style="text-align:right;border-bottom:1px solid var(--md-outline-variant);
+                                                                   {{ $q === null ? 'color:var(--md-on-surface-variant);' : '' }}">
+                                                            {{ $q === null ? '-' : number_format($q, 0, ',', '.') }}
+                                                        </td>
+                                                    @endforeach
+                                                    <td style="text-align:right;font-weight:600;border-bottom:1px solid var(--md-outline-variant);border-left:1px solid var(--md-outline-variant);">
+                                                        {{ number_format($v['qty'], 0, ',', '.') }}
+                                                    </td>
+                                                </tr>
                                             @endforeach
                                         </tbody>
                                         @php $tfCell = 'padding:14px 16px;font-weight:700;background:var(--md-surface-container);border-top:2px solid var(--md-outline-variant);'; @endphp
                                         <tfoot>
                                             <tr>
-                                                <td colspan="2" style="{{ $tfCell }}color:var(--md-on-surface);">TOTAL</td>
-                                                <td style="{{ $tfCell }}text-align:right;">{{ number_format($p['qty'], 0, ',', '.') }}</td>
+                                                <td style="{{ $tfCell }}color:var(--md-on-surface);">TOTAL</td>
+                                                @foreach ($storeColumns as $sc)
+                                                    @php $q = $p['store_qty'][(int) $sc->store_id] ?? null; @endphp
+                                                    <td style="{{ $tfCell }}text-align:right;{{ $q === null ? 'color:var(--md-on-surface-variant);font-weight:400;' : '' }}">
+                                                        {{ $q === null ? '-' : number_format($q, 0, ',', '.') }}
+                                                    </td>
+                                                @endforeach
+                                                <td style="{{ $tfCell }}text-align:right;border-left:1px solid var(--md-outline-variant);">{{ number_format($p['qty'], 0, ',', '.') }}</td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -311,7 +317,7 @@
         const item = e.target.closest('.sales-product-item');
         const parentSku = item.dataset.parentSku || 'export';
         const rows = JSON.parse(item.dataset.export || '[]');
-        const headers = ['SKU Variation', 'Nama Toko', 'Total Qty Terjual'];
+        const headers = @json(array_merge(['SKU Variation'], $storeColumns->map(fn ($sc) => $cleanStore($sc->store_name))->all(), ['Total']));
         const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Sales');
