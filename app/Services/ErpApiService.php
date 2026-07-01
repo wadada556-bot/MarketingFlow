@@ -31,6 +31,25 @@ class ErpApiService
     }
 
     /**
+     * Fetch PO inbound qty for a list of parent SKUs (tanpa stock/sales — dipakai
+     * setelah stock+HPP pindah ke Jubelio dan sales pindah ke daily_sku_sales lokal).
+     *
+     * @param  string[]  $parentSkus
+     * @return array<string, array<string, int>>  [parentSku => [variantSku => qty_ordered]]
+     */
+    public function getPoByParentSkus(array $parentSkus): array
+    {
+        if (empty($parentSkus)) {
+            return [];
+        }
+
+        $skus = collect($parentSkus)->unique()->filter()->values();
+        $rows = $this->query($this->buildPoSql($skus));
+
+        return $this->mapPoRows($rows, $skus);
+    }
+
+    /**
      * Fetch stock + per-variant sales + PO qty in ONE concurrent batch.
      *
      * Fires the stock query, PO query, and all per-SKU sales requests together via a

@@ -247,6 +247,67 @@ class JubelioApiService
     }
 
     /**
+     * Fetch stok (available) + HPP untuk banyak parent SKU sekaligus, 1 request per
+     * parent SKU (param `q` Jubelio tidak mendukung batch) dijalankan paralel via
+     * Http::pool dan menghormati rate limiter yang sama dengan Sales/HPP sync.
+     *
+     * @param  string[]  $parentSkus
+     * @return array{stock: array<string, list<array{sku:string, qty:int}>>, hpp: array<string, int>}
+     */
+    public function getInventoryByParentSkus(array $parentSkus): array
+    {
+        if (empty($parentSkus)) {
+            return ['stock' => [], 'hpp' => []];
+        }
+
+        $token = $this->login();
+        $skus  = array_values(array_unique($parentSkus));
+
+        $stock = [];
+        $hpp   = [];
+
+        foreach (array_chunk($skus, self::DETAIL_CONCURRENCY) as $chunk) {
+            $this->rateGate(count($chunk));
+
+            $responses = Http::pool(fn ($pool) => array_map(
+                fn ($sku) => $pool->as($sku)
+                    ->withoutVerifying()->timeout(30)
+                    ->withHeaders(['Authorization' => $token, 'accept' => 'application/json'])
+                    ->get(self::INV_URL, [
+                        'page'           => 1,
+                        'page_size'      => self::PAGE_SIZE,
+                        'sort_direction' => 'NONE',
+                        'q'              => $sku,
+                    ]),
+                $chunk
+            ));
+
+            $this->logReqs(count($chunk));
+
+            foreach ($chunk as $parentSku) {
+                $resp = $responses[$parentSku] ?? null;
+                if (! $resp instanceof \Illuminate\Http\Client\Response || ! $resp->successful()) {
+                    Log::warning("[Jubelio] gagal ambil inventory untuk parent SKU {$parentSku}");
+                    continue;
+                }
+
+                foreach ($resp->json('data') ?? [] as $item) {
+                    $code = trim((string) ($item['item_code'] ?? ''));
+                    if ($code === '' || ! str_contains(strtoupper($code), strtoupper($parentSku))) {
+                        continue; // hasil pencarian `q` bisa nyasar ke SKU lain yang mirip
+                    }
+
+                    $available = (int) ($item['total_stocks']['available'] ?? 0);
+                    $stock[$parentSku][] = ['sku' => $code, 'qty' => $available];
+                    $hpp[$code] = (int) round((float) ($item['last_cogs'] ?? $item['average_cost'] ?? 0));
+                }
+            }
+        }
+
+        return ['stock' => $stock, 'hpp' => $hpp];
+    }
+
+    /**
      * Fetch satu halaman inventory dengan retry otomatis (3x, backoff 5 detik).
      */
     private function fetchPage(string $token, int $page): array

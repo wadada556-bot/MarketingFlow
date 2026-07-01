@@ -9,7 +9,9 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductAd;
 use App\Models\Store;
+use App\Services\DailySalesQueryService;
 use App\Services\ErpApiService;
+use App\Services\JubelioApiService;
 use App\Services\ProductAdService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -21,6 +23,8 @@ class ProductAdController extends Controller
     public function __construct(
         private readonly ProductAdService $productAdService,
         private readonly ErpApiService $erpApiService,
+        private readonly JubelioApiService $jubelioApiService,
+        private readonly DailySalesQueryService $dailySalesQueryService,
     ) {}
 
     public function index(Request $request)
@@ -77,12 +81,6 @@ class ProductAdController extends Controller
         $items = $productAds->items();
         $erp   = $this->fetchErpData($items);
 
-        // Kumpulkan semua variant SKU untuk lookup HPP sekali (1 DB query)
-        $allVariantSkus = collect($erp['stock'])
-            ->flatMap(fn ($variants) => array_column($variants, 'sku'))
-            ->unique()->values()->all();
-        $hppMap = ErpApiService::getHppMap($allVariantSkus);
-
         $out = [];
         foreach ($items as $ad) {
             $sku      = $ad->product->parent_sku ?? null;
@@ -91,17 +89,20 @@ class ProductAdController extends Controller
                 ? ($erp['sales'][$sku] ?? ['today' => [], 'yesterday' => [], '7d' => [], '30d' => [], '90d' => []])
                 : ['today' => [], 'yesterday' => [], '7d' => [], '30d' => [], '90d' => []];
             $skuPo    = $sku ? ($erp['po'][$sku] ?? []) : [];
+            $skuHpp   = $sku ? ($erp['hpp'][$sku] ?? []) : [];
+            $skuStoreSales = $sku ? ($erp['storeSales'][$sku] ?? []) : [];
 
             // Tambahkan hpp ke setiap variant agar tersedia di JS renderer
             $variants = array_map(
-                fn ($v) => [...$v, 'hpp' => $hppMap[$v['sku']] ?? 0],
+                fn ($v) => [...$v, 'hpp' => $skuHpp[$v['sku']] ?? 0],
                 $variants,
             );
 
             $out[$ad->id] = [
-                'variants' => $variants,
-                'sales'    => $skuSales,
-                'po'       => $skuPo,
+                'variants'   => $variants,
+                'sales'      => $skuSales,
+                'storeSales' => $skuStoreSales,
+                'po'         => $skuPo,
             ];
         }
 
@@ -127,46 +128,63 @@ class ProductAdController extends Controller
     }
 
     /**
-     * Per-SKU cached fetch of ERP stock + sales + PO.
+     * Per-SKU cached fetch of stock+HPP (Jubelio) + sales (daily_sku_sales lokal,
+     * total & per toko) + PO (ERP lama, satu-satunya yang masih dari sana).
      *
      * @param  string[]  $skus
-     * @return array{stock: array<string, mixed>, sales: array<string, mixed>, po: array<string, mixed>}
+     * @return array{stock: array, sales: array, storeSales: array, po: array, hpp: array}
      */
     private function fetchErpForSkus(array $skus): array
     {
-        $stock   = [];
-        $sales   = [];
-        $po      = [];
-        $missing = [];
+        $stock      = [];
+        $sales      = [];
+        $storeSales = [];
+        $po         = [];
+        $hpp        = [];
+        $missing    = [];
 
         foreach ($skus as $sku) {
             $cached = Cache::get('pa_erp_sku_' . md5($sku));
-            if ($cached !== null && array_key_exists('po', $cached)) {
-                $stock[$sku] = $cached['stock'];
-                $sales[$sku] = $cached['sales'];
-                $po[$sku]    = $cached['po'];
+            if ($cached !== null && array_key_exists('storeSales', $cached)) {
+                $stock[$sku]      = $cached['stock'];
+                $sales[$sku]      = $cached['sales'];
+                $storeSales[$sku] = $cached['storeSales'];
+                $po[$sku]         = $cached['po'];
+                $hpp[$sku]        = $cached['hpp'];
             } else {
                 $missing[] = $sku;
             }
         }
 
         if (!empty($missing)) {
-            $fetched = $this->erpApiService->getStockAndSalesByParentSkus($missing);
+            $fetchedJubelio = $this->jubelioApiService->getInventoryByParentSkus($missing);
+            $fetchedPo      = $this->erpApiService->getPoByParentSkus($missing);
+            $fetchedSales   = $this->dailySalesQueryService->getForParentSkus($missing);
+
             foreach ($missing as $sku) {
+                $skuStock = $fetchedJubelio['stock'][$sku] ?? [];
+                $skuHpp   = collect($skuStock)
+                    ->mapWithKeys(fn ($v) => [$v['sku'] => $fetchedJubelio['hpp'][$v['sku']] ?? 0])
+                    ->all();
+
                 $entry = [
-                    'stock' => $fetched['stock'][$sku] ?? [],
-                    'sales' => $fetched['sales'][$sku] ?? ['today' => [], 'yesterday' => [], '7d' => [], '30d' => [], '90d' => []],
-                    'po'    => $fetched['po'][$sku]    ?? [],
+                    'stock'      => $skuStock,
+                    'sales'      => $fetchedSales['total'][$sku] ?? ['today' => [], 'yesterday' => [], '7d' => [], '30d' => [], '90d' => []],
+                    'storeSales' => $fetchedSales['stores'][$sku] ?? [],
+                    'po'         => $fetchedPo[$sku] ?? [],
+                    'hpp'        => $skuHpp,
                 ];
                 $ttl = empty($entry['stock']) ? 60 : self::ERP_CACHE_TTL;
                 Cache::put('pa_erp_sku_' . md5($sku), $entry, $ttl);
-                $stock[$sku] = $entry['stock'];
-                $sales[$sku] = $entry['sales'];
-                $po[$sku]    = $entry['po'];
+                $stock[$sku]      = $entry['stock'];
+                $sales[$sku]      = $entry['sales'];
+                $storeSales[$sku] = $entry['storeSales'];
+                $po[$sku]         = $entry['po'];
+                $hpp[$sku]        = $entry['hpp'];
             }
         }
 
-        return ['stock' => $stock, 'sales' => $sales, 'po' => $po];
+        return ['stock' => $stock, 'sales' => $sales, 'storeSales' => $storeSales, 'po' => $po, 'hpp' => $hpp];
     }
 
     public function create()
