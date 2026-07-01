@@ -90,6 +90,27 @@ class SalesHistoryController extends Controller
         // Urut: produk & variasi by qty desc
         foreach ($products as &$p) {
             uasort($p['variants'], fn ($a, $b) => $b['qty'] <=> $a['qty']);
+
+            // Ranking best seller (emas/perak/perunggu) per toko: berdasarkan qty variasi di toko itu
+            $storeIds = [];
+            foreach ($p['variants'] as $v) {
+                $storeIds = array_merge($storeIds, array_keys($v['store_qty']));
+            }
+            $p['store_rank'] = [];
+            foreach (array_unique($storeIds) as $sid) {
+                $qtyBySku = [];
+                foreach ($p['variants'] as $v) {
+                    $q = $v['store_qty'][$sid] ?? 0;
+                    if ($q > 0) {
+                        $qtyBySku[$v['sku']] = $q;
+                    }
+                }
+                arsort($qtyBySku);
+                $rank = 1;
+                foreach (array_keys(array_slice($qtyBySku, 0, 3, true)) as $sku) {
+                    $p['store_rank'][$sid][$sku] = $rank++;
+                }
+            }
         }
         unset($p);
         uasort($products, fn ($a, $b) => $b['qty'] <=> $a['qty']);

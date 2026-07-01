@@ -12,6 +12,12 @@
     $channelIcon = fn ($name) => str_contains(strtolower($name), 'tiktok')
         ? '<i class="bi bi-tiktok" style="color:#010101;"></i>'
         : '<i class="bi bi-shop" style="color:#42B549;"></i>';
+    $medalIcons = [1 => 'bi-trophy-fill', 2 => 'bi-award-fill', 3 => 'bi-award-fill'];
+    $medalTitles = [1 => 'Best seller #1 (emas)', 2 => 'Best seller #2 (perak)', 3 => 'Best seller #3 (perunggu)'];
+    $medal = function ($rank) use ($medalIcons, $medalTitles) {
+        if (!$rank) return '';
+        return '<span class="sh-medal sh-medal-' . $rank . '" title="' . $medalTitles[$rank] . '"><i class="bi ' . $medalIcons[$rank] . '"></i></span>';
+    };
 @endphp
 
 @push('styles')
@@ -96,6 +102,21 @@
     }
     .sh-sort { display: flex; align-items: center; gap: 8px; }
     .sh-sort-label { font-size: 12px; color: var(--md-on-surface-variant); font-weight: 500; }
+
+    .sh-medal {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        font-size: 10px;
+        margin-left: 6px;
+        vertical-align: middle;
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
+    }
+    .sh-medal-1 { background: #FFD700; color: #6b5500; }
+    .sh-medal-2 { background: #C0C0C0; color: #4d4d4d; }
+    .sh-medal-3 { background: #CD7F32; color: #4a2e12; }
 
     @media (max-width: 768px) {
         .sh-toolbar-actions { margin-left: 0; width: 100%; }
@@ -328,10 +349,14 @@
                                                         {{ $v['sku'] }}
                                                     </td>
                                                     @foreach ($storeColumns as $sc)
-                                                        @php $q = $v['store_qty'][(int) $sc->store_id] ?? null; @endphp
-                                                        <td style="text-align:right;border-bottom:1px solid var(--md-outline-variant);
+                                                        @php
+                                                            $sid = (int) $sc->store_id;
+                                                            $q = $v['store_qty'][$sid] ?? null;
+                                                            $rank = $p['store_rank'][$sid][$v['sku']] ?? null;
+                                                        @endphp
+                                                        <td style="text-align:right;border-bottom:1px solid var(--md-outline-variant);white-space:nowrap;
                                                                    {{ $q === null ? 'color:var(--md-on-surface-variant);' : '' }}">
-                                                            {{ $q === null ? '-' : number_format($q, 0, ',', '.') }}
+                                                            {{ $q === null ? '-' : number_format($q, 0, ',', '.') }}{!! $medal($rank) !!}
                                                         </td>
                                                     @endforeach
                                                     <td style="text-align:right;font-weight:600;border-bottom:1px solid var(--md-outline-variant);border-left:1px solid var(--md-outline-variant);">
