@@ -62,9 +62,10 @@ class ProductAdController extends Controller
         $currentStatus = $request->testing_status ?? 'semua';
         $filters       = $request->only(['product', 'status', 'category', 'store', 'testing_status']);
 
-        // Query ringan: hanya id + parent_sku — tidak perlu eager-load category/stores untuk ERP fetch
+        // Query ringan: hanya id + parent_sku, tapi tetap eager-load stores:id,name
+        // (dipakai untuk membatasi storeSales hanya ke toko tempat iklan ini jalan).
         $productAds = ProductAd::select('id', 'product_id')
-            ->with('product:id,parent_sku')
+            ->with(['product:id,parent_sku', 'stores:id,name'])
             ->filter($filters)
             ->when(
                 $currentStatus === 'perlu_dicek',
@@ -80,12 +81,36 @@ class ProductAdController extends Controller
         foreach ($items as $ad) {
             $sku      = $ad->product->parent_sku ?? null;
             $variants = $sku ? ($erp['stock'][$sku] ?? []) : [];
-            $skuSales = $sku
-                ? ($erp['sales'][$sku] ?? ['today' => [], 'yesterday' => [], '7d' => [], '30d' => [], '90d' => []])
-                : ['today' => [], 'yesterday' => [], '7d' => [], '30d' => [], '90d' => []];
             $skuPo    = $sku ? ($erp['po'][$sku] ?? []) : [];
             $skuHpp   = $sku ? ($erp['hpp'][$sku] ?? []) : [];
             $skuStoreSales = $sku ? ($erp['storeSales'][$sku] ?? []) : [];
+
+            // Penjualan ditotal HANYA dari toko tempat iklan ini benar-benar jalan
+            // (bukan semua toko yang pernah menjual SKU ini). Cocokkan via "contains"
+            // (bukan exact) karena nama toko di daily_sku_sales bisa punya prefix
+            // ekstra spt "TT " (mis. "TT YARRA STORE" dari Tokopedia vs "YARRA STORE").
+            $adStoreNames = $ad->stores->pluck('name')->all();
+            $matchingStoreSales = array_filter(
+                $skuStoreSales,
+                function ($store) use ($adStoreNames) {
+                    $cleanedName = strtoupper($store['name']);
+                    foreach ($adStoreNames as $adStoreName) {
+                        if (str_contains($cleanedName, $adStoreName)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            );
+
+            $skuSales = ['today' => [], 'yesterday' => [], '7d' => [], '30d' => [], '90d' => []];
+            foreach ($matchingStoreSales as $store) {
+                foreach ($store['sales'] ?? [] as $period => $bySku) {
+                    foreach ($bySku as $variantSku => $qty) {
+                        $skuSales[$period][$variantSku] = ($skuSales[$period][$variantSku] ?? 0) + $qty;
+                    }
+                }
+            }
 
             // Tambahkan hpp ke setiap variant agar tersedia di JS renderer
             $variants = array_map(
@@ -94,10 +119,9 @@ class ProductAdController extends Controller
             );
 
             $out[$ad->id] = [
-                'variants'   => $variants,
-                'sales'      => $skuSales,
-                'storeSales' => $skuStoreSales,
-                'po'         => $skuPo,
+                'variants' => $variants,
+                'sales'    => $skuSales,
+                'po'       => $skuPo,
             ];
         }
 

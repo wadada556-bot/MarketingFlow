@@ -312,77 +312,7 @@ document.addEventListener('DOMContentLoaded', function () {
             + '</table>';
     }
 
-    /**
-     * storeSales shape: { [store_id]: { name: '...', sales: { today: {sku:qty}, ... } } }
-     * Stok/HPP/PO tidak dipecah per toko (levelnya gudang, bukan channel penjualan) —
-     * hanya kolom penjualan yang di-breakdown per toko. Lihat DailySalesQueryService.
-     */
-    function renderPerTokoTable(variants, storeSales, rank1, rank2, rank3) {
-        var storeIds = Object.keys(storeSales || {});
-        if (storeIds.length === 0) {
-            return '<p style="font-size:12px;color:var(--md-outline);padding:12px 0">Tidak ada data penjualan per toko pada rentang ini.</p>';
-        }
-        storeIds.sort(function (a, b) { return storeSales[a].name.localeCompare(storeSales[b].name); });
-
-        var headers = ['SKU', 'Toko', 'Hari Ini', 'Kemarin', '7 Hari', '30 Hari', '90 Hari'].map(function (h, i) {
-            var extra = (i >= 2 ? ';text-align:right' : '');
-            if (i === 2) extra += sepLeft + ';padding-left:16px';
-            else if (i > 2) extra += ';padding-left:12px';
-            return '<th style="' + thBase + extra + '">' + h + '</th>';
-        }).join('');
-
-        var colgroup = '<colgroup>'
-            + '<col style="min-width:130px"><col style="min-width:120px">'
-            + '<col style="min-width:56px"><col style="min-width:56px"><col style="min-width:52px">'
-            + '<col style="min-width:52px"><col style="min-width:60px">'
-            + '</colgroup>';
-
-        var totals = { today: 0, yesterday: 0, '7d': 0, '30d': 0, '90d': 0 };
-        var rows = '';
-        variants.forEach(function (v, vIdx) {
-            var vSku = v.sku;
-            storeIds.forEach(function (storeId, sIdx) {
-                var store = storeSales[storeId];
-                var getVal = function (period) {
-                    var p = (store.sales && store.sales[period]) || {};
-                    var val = Object.prototype.hasOwnProperty.call(p, vSku) ? parseInt(p[vSku]) : 0;
-                    totals[period] += val;
-                    return val;
-                };
-                var vToday = getVal('today'), vYest = getVal('yesterday'), v7d = getVal('7d'), v30d = getVal('30d'), v90d = getVal('90d');
-                var rowStyle = (sIdx > 0 || vIdx > 0) ? 'border-top:1px solid var(--md-outline-variant);' : '';
-                if (vIdx % 2 === 1) rowStyle += 'background:rgba(0,0,0,.015);';
-
-                rows += '<tr style="' + rowStyle + '">'
-                    + (sIdx === 0
-                        ? '<td rowspan="' + storeIds.length + '" style="vertical-align:top;font-size:13px;padding:9px 0;color:var(--md-on-surface);font-weight:500">' + vSku + rankBadge(vSku, rank1, rank2, rank3) + '</td>'
-                        : '')
-                    + '<td style="padding:9px 0;font-size:12px;color:var(--md-on-surface-variant)">' + store.name + '</td>'
-                    + salesCellHtml(vToday, true) + salesCellHtml(vYest, false) + salesCellHtml(v7d, false)
-                    + salesCellHtml(v30d, false) + salesCellHtml(v90d, false).replace(fmtNum(v90d), fmtCompact(v90d))
-                    + '</tr>';
-            });
-        });
-
-        var totRow = '<tr style="background:var(--md-surface-container-low);border-top:2px solid var(--md-outline-variant)">'
-            + '<td colspan="2" style="font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:9px 0;color:var(--md-on-surface-variant)">Total</td>';
-        ['today', 'yesterday', '7d', '30d', '90d'].forEach(function (period, i) {
-            var t = totals[period];
-            var color = t === 0 ? 'var(--md-error)' : 'var(--md-on-surface)';
-            var sep = i === 0 ? sepLeft + ';padding-left:16px' : '';
-            totRow += '<td style="padding:9px 0 9px 12px;text-align:right;font-size:13px;font-weight:600;color:' + color + sep + '">' + t.toLocaleString('id') + '</td>';
-        });
-        totRow += '</tr>';
-
-        return '<table style="width:100%;border-collapse:collapse">'
-            + colgroup
-            + '<thead><tr>' + headers + '</tr></thead>'
-            + '<tbody>' + rows + '</tbody>'
-            + '<tfoot>' + totRow + '</tfoot>'
-            + '</table>';
-    }
-
-    function renderSkuDetail(variants, sales, po, adId, storeSales) {
+    function renderSkuDetail(variants, sales, po, adId) {
         if (!variants || variants.length === 0) {
             return '<span style="font-size:12px;color:var(--md-outline)">Tidak ada data SKU dari ERP</span>';
         }
@@ -392,8 +322,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var rank2 = sorted90d[1] ? sorted90d[1][0] : null;
         var rank3 = sorted90d[2] ? sorted90d[2][0] : null;
 
-        var totalHtml   = renderTotalTable(variants, sales, po, rank1, rank2, rank3);
-        var perTokoHtml = renderPerTokoTable(variants, storeSales, rank1, rank2, rank3);
+        var totalHtml = renderTotalTable(variants, sales, po, rank1, rank2, rank3);
 
         return '<button type="button" class="sku-toggle-btn d-inline-flex align-items-center gap-1"'
             + ' style="background:none;border:none;padding:0;cursor:pointer;font-size:12px;font-weight:500;color:var(--md-on-surface-variant)"'
@@ -402,31 +331,8 @@ document.addEventListener('DOMContentLoaded', function () {
             + ' ' + variants.length + ' SKU</button>'
             + '<div class="collapse mt-2" id="sku-' + adId + '">'
             + '<div style="border-left:2px solid var(--md-outline-variant);padding-left:14px">'
-            + '<div class="d-inline-flex gap-1 mb-2 sales-mode-toggle" data-ad-id="' + adId + '">'
-            + '<button type="button" class="md-choice-chip checked" data-mode="total">Total</button>'
-            + '<button type="button" class="md-choice-chip" data-mode="toko">Per Toko</button>'
-            + '</div>'
-            + '<div class="sales-view-total" data-ad-id="' + adId + '" style="overflow-x:auto;-webkit-overflow-scrolling:touch">' + totalHtml + '</div>'
-            + '<div class="sales-view-toko" data-ad-id="' + adId + '" style="display:none;overflow-x:auto;-webkit-overflow-scrolling:touch">' + perTokoHtml + '</div>'
+            + '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">' + totalHtml + '</div>'
             + '</div></div>';
-    }
-
-    function bindSalesModeToggles() {
-        document.querySelectorAll('.sales-mode-toggle').forEach(function (group) {
-            if (group.dataset.bound) return;
-            group.dataset.bound = '1';
-            var adId = group.dataset.adId;
-            group.querySelectorAll('.md-choice-chip').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    group.querySelectorAll('.md-choice-chip').forEach(function (b) { b.classList.toggle('checked', b === btn); });
-                    var mode = btn.dataset.mode;
-                    var totalView = document.querySelector('.sales-view-total[data-ad-id="' + adId + '"]');
-                    var tokoView  = document.querySelector('.sales-view-toko[data-ad-id="' + adId + '"]');
-                    if (totalView) totalView.style.display = mode === 'total' ? '' : 'none';
-                    if (tokoView)  tokoView.style.display  = mode === 'toko'  ? '' : 'none';
-                });
-            });
-        });
     }
 
     function bindSkuToggles() {
@@ -455,10 +361,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 var stockCell = document.querySelector('.erp-stock[data-ad-id="' + adId + '"]');
                 if (stockCell) stockCell.innerHTML = renderStockCell(d.variants);
                 var detailCell = document.querySelector('.erp-detail[data-ad-id="' + adId + '"]');
-                if (detailCell) detailCell.innerHTML = renderSkuDetail(d.variants, d.sales || {}, d.po || {}, adId, d.storeSales || {});
+                if (detailCell) detailCell.innerHTML = renderSkuDetail(d.variants, d.sales || {}, d.po || {}, adId);
             });
             bindSkuToggles();
-            bindSalesModeToggles();
         })
         .catch(function () {
             clearTimeout(erpTimeout);
