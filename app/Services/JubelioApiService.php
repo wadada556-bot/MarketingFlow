@@ -9,6 +9,7 @@ class JubelioApiService
 {
     private const LOGIN_URL = 'https://api2.jubelio.com/login';
     private const INV_URL   = 'https://open.jubelio.com/core-api/inventory/v2/';
+    private const PO_URL    = 'https://open.jubelio.com/core-api/inventory/v2/inbound-purchase-not-fulfilled/';
     private const PAGE_SIZE = 100;
 
     // Endpoint Sales (dipakai fitur History Penjualan)
@@ -305,6 +306,72 @@ class JubelioApiService
         }
 
         return ['stock' => $stock, 'hpp' => $hpp];
+    }
+
+    /**
+     * Fetch PO inbound yang belum fully-fulfilled untuk banyak parent SKU sekaligus,
+     * 1 request per parent SKU (sama seperti inventory — `q` tidak mendukung batch)
+     * dijalankan paralel via Http::pool.
+     *
+     * @param  string[]  $parentSkus
+     * @return array<string, array<string, int>>  [parentSku => [variantSku => qty_outstanding]]
+     */
+    public function getPoByParentSkus(array $parentSkus): array
+    {
+        if (empty($parentSkus)) {
+            return [];
+        }
+
+        $token = $this->login();
+        $skus  = array_values(array_unique($parentSkus));
+
+        $po = [];
+
+        foreach (array_chunk($skus, self::DETAIL_CONCURRENCY) as $chunk) {
+            $this->rateGate(count($chunk));
+
+            $responses = Http::pool(fn ($pool) => array_map(
+                fn ($sku) => $pool->as($sku)
+                    ->withoutVerifying()->timeout(30)
+                    ->withHeaders(['Authorization' => $token, 'accept' => 'application/json'])
+                    ->get(self::PO_URL, [
+                        'page'            => 1,
+                        'page_size'       => self::PAGE_SIZE,
+                        'sort_by'         => 'item_name',
+                        'sort_direction'  => 'ASC',
+                        'q'               => $sku,
+                        'brand'           => '',
+                        'otherBrand'      => '',
+                        'categoryId'      => '',
+                    ]),
+                $chunk
+            ));
+
+            $this->logReqs(count($chunk));
+
+            foreach ($chunk as $parentSku) {
+                $resp = $responses[$parentSku] ?? null;
+                if (! $resp instanceof \Illuminate\Http\Client\Response || ! $resp->successful()) {
+                    Log::warning("[Jubelio] gagal ambil PO untuk parent SKU {$parentSku}");
+                    continue;
+                }
+
+                foreach ($resp->json('data') ?? [] as $item) {
+                    $code = trim((string) ($item['item_code'] ?? ''));
+                    if ($code === '' || ! str_contains(strtoupper($code), strtoupper($parentSku))) {
+                        continue; // hasil pencarian `q` bisa nyasar ke SKU lain yang mirip
+                    }
+
+                    $ordered   = (float) ($item['qty_in_base']   ?? 0);
+                    $fulfilled = (float) ($item['qty_fulfilled'] ?? 0);
+                    $outstanding = max(0, (int) round($ordered - $fulfilled));
+
+                    $po[$parentSku][$code] = ($po[$parentSku][$code] ?? 0) + $outstanding;
+                }
+            }
+        }
+
+        return $po;
     }
 
     /**

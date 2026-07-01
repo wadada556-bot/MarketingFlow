@@ -9,7 +9,6 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\DailyStoreStat;
 use App\Services\DailySalesQueryService;
-use App\Services\ErpApiService;
 use App\Services\JubelioApiService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -43,7 +42,6 @@ class DashboardController extends Controller
     ];
 
     public function __construct(
-        private readonly ErpApiService $erpApiService,
         private readonly JubelioApiService $jubelioApiService,
         private readonly DailySalesQueryService $dailySalesQueryService,
     ) {}
@@ -508,6 +506,10 @@ class DashboardController extends Controller
      */
     private function buildStockAlerts(): array
     {
+        // Bisa ada 2 fase panggilan Jubelio berurutan (stok+HPP, lalu PO) saat cache
+        // kosong — masing-masing SKU 1 request, jadi butuh lebih dari default 30s.
+        set_time_limit(120);
+
         $stockAlerts         = [];
         $stockAlertCount     = 0;
         $stockApiUnavailable = false;
@@ -632,7 +634,7 @@ class DashboardController extends Controller
             $poCacheKey = 'dashboard_po_' . md5(implode(',', $alertSkus));
             $poData = Cache::remember($poCacheKey, self::STOCK_CACHE_TTL, function () use ($alertSkus) {
                 try {
-                    return $this->erpApiService->getPoByParentSkus($alertSkus);
+                    return $this->jubelioApiService->getPoByParentSkus($alertSkus);
                 } catch (\Throwable) {
                     return [];
                 }

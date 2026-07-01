@@ -10,7 +10,6 @@ use App\Models\Product;
 use App\Models\ProductAd;
 use App\Models\Store;
 use App\Services\DailySalesQueryService;
-use App\Services\ErpApiService;
 use App\Services\JubelioApiService;
 use App\Services\ProductAdService;
 use Illuminate\Http\Request;
@@ -22,7 +21,6 @@ class ProductAdController extends Controller
 
     public function __construct(
         private readonly ProductAdService $productAdService,
-        private readonly ErpApiService $erpApiService,
         private readonly JubelioApiService $jubelioApiService,
         private readonly DailySalesQueryService $dailySalesQueryService,
     ) {}
@@ -158,7 +156,7 @@ class ProductAdController extends Controller
 
         if (!empty($missing)) {
             $fetchedJubelio = $this->jubelioApiService->getInventoryByParentSkus($missing);
-            $fetchedPo      = $this->erpApiService->getPoByParentSkus($missing);
+            $fetchedPo      = $this->jubelioApiService->getPoByParentSkus($missing);
             $fetchedSales   = $this->dailySalesQueryService->getForParentSkus($missing);
 
             foreach ($missing as $sku) {
@@ -254,16 +252,13 @@ class ProductAdController extends Controller
         $productAd->loadMissing('product:id,parent_sku');
         $parentSku = $productAd->product->parent_sku ?? null;
 
-        $erp           = $parentSku ? $this->fetchErpForSkus([$parentSku]) : ['stock' => [], 'sales' => [], 'po' => []];
+        $erp           = $parentSku ? $this->fetchErpForSkus([$parentSku]) : ['stock' => [], 'sales' => [], 'po' => [], 'hpp' => []];
         $stockVariants = $parentSku ? ($erp['stock'][$parentSku] ?? []) : [];
         $variantSales  = $parentSku
             ? ($erp['sales'][$parentSku] ?? ['today' => [], 'yesterday' => [], '7d' => [], '30d' => []])
             : ['today' => [], 'yesterday' => [], '7d' => [], '30d' => []];
         $variantPo     = $parentSku ? ($erp['po'][$parentSku] ?? []) : [];
-
-        // Lookup HPP untuk semua variant SKU (1 DB query)
-        $variantSkus = array_column($stockVariants, 'sku');
-        $hppMap      = ErpApiService::getHppMap($variantSkus);
+        $hppMap        = $parentSku ? ($erp['hpp'][$parentSku] ?? []) : [];
 
         return response()->json([
             'html' => view('product-ads.partials._variant-stock-table', compact('stockVariants', 'variantSales', 'variantPo', 'hppMap'))->render(),
