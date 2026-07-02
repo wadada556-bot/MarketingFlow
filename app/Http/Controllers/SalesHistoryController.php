@@ -125,6 +125,24 @@ class SalesHistoryController extends Controller
             'products' => count($products),
         ];
 
+        // Kelompokkan produk per prefix huruf (buang angka di belakang):
+        // TRC1, TRC5 → grup "TRC". Kalau tak ada angka di belakang, produk jadi grup sendiri.
+        $groups = [];
+        foreach ($products as $p) {
+            $gkey = preg_replace('/[\s\-_]*\d+.*$/', '', $p['parent_sku']);
+            $gkey = $gkey !== '' ? $gkey : $p['parent_sku'];
+
+            $groups[$gkey] ??= [
+                'group'    => $gkey,
+                'qty'      => 0,
+                'products' => [],
+            ];
+            $groups[$gkey]['qty']        += $p['qty'];
+            $groups[$gkey]['products'][]  = $p;
+        }
+        // Grup diurut by qty desc (produk di dalamnya sudah urut qty desc)
+        uasort($groups, fn ($a, $b) => $b['qty'] <=> $a['qty']);
+
         // Kolom toko = seluruh toko TikTok (stabil di tiap tabel; sel kosong → "-")
         $storeColumns = Order::query()
             ->selectRaw('store_id, MAX(store_name) as store_name')
@@ -146,6 +164,7 @@ class SalesHistoryController extends Controller
 
         return view('sales-history.index', [
             'products'     => $products,
+            'groups'       => $groups,
             'totals'       => $totals,
             'from'         => $from,
             'to'           => $to,
