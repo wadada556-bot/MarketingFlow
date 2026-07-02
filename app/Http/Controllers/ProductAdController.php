@@ -65,7 +65,7 @@ class ProductAdController extends Controller
         // Query ringan: hanya id + parent_sku, tapi tetap eager-load stores:id,name
         // (dipakai untuk membatasi storeSales hanya ke toko tempat iklan ini jalan).
         $productAds = ProductAd::select('id', 'product_id')
-            ->with(['product:id,parent_sku', 'stores:id,name'])
+            ->with(['product:id,parent_sku', 'stores:id,name,jubelio_store_id'])
             ->filter($filters)
             ->when(
                 $currentStatus === 'perlu_dicek',
@@ -86,21 +86,14 @@ class ProductAdController extends Controller
             $skuStoreSales = $sku ? ($erp['storeSales'][$sku] ?? []) : [];
 
             // Penjualan ditotal HANYA dari toko tempat iklan ini benar-benar jalan
-            // (bukan semua toko yang pernah menjual SKU ini). Cocokkan via "contains"
-            // (bukan exact) karena nama toko di orders bisa punya prefix
-            // ekstra spt "TT " (mis. "TT YARRA STORE" dari Tokopedia vs "YARRA STORE").
-            $adStoreNames = $ad->stores->pluck('name')->all();
-            $matchingStoreSales = array_filter(
+            // (bukan semua toko yang pernah menjual SKU ini). storeSales dikunci
+            // oleh store_id Jubelio (== orders.store_id), jadi cukup irisan dengan
+            // jubelio_store_id toko iklan — tak perlu cocok nama yang rapuh
+            // (nama di orders spt "TT CARAMEL" beda dgn "caramel aksesoris").
+            $adJubelioStoreIds = $ad->stores->pluck('jubelio_store_id')->filter()->all();
+            $matchingStoreSales = array_intersect_key(
                 $skuStoreSales,
-                function ($store) use ($adStoreNames) {
-                    $cleanedName = strtoupper($store['name']);
-                    foreach ($adStoreNames as $adStoreName) {
-                        if (str_contains($cleanedName, $adStoreName)) {
-                            return true;
-                        }
-                    }
-                    return false;
-                }
+                array_flip($adJubelioStoreIds),
             );
 
             $skuSales = ['today' => [], 'yesterday' => [], '7d' => [], '30d' => [], '90d' => []];
