@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FilterDateRangeRequest;
 use App\Models\Order;
+use App\Models\Product;
+use App\Support\SkuMatch;
 use Carbon\Carbon;
 
 class SalesHistoryController extends Controller
@@ -52,10 +54,15 @@ class SalesHistoryController extends Controller
             ->groupBy('sku_parent', 'sku_variant', 'store_id', 'store_name', 'channel_id', 'channel_name')
             ->get();
 
+        // Parent produk terdaftar (products) untuk pengelompokan berbasis prefix —
+        // konsisten dgn Product Ads (lihat App\Support\SkuMatch). SKU yg tak dimiliki
+        // produk mana pun jatuh ke sku_parent lama (strip "-\d+$").
+        $productParents = Product::pluck('parent_sku')->all();
+
         // Susun bertingkat: produk (parent_sku) → variasi (sku); qty dipivot per toko
         $products = [];
         foreach ($rows as $r) {
-            $pkey = $r->parent_sku ?: $r->sku;
+            $pkey = SkuMatch::owner($r->sku, $productParents) ?? ($r->parent_sku ?: $r->sku);
             $sid  = (int) $r->store_id;
             $qty  = (int) $r->qty;
 
