@@ -213,31 +213,31 @@ class JubelioApiService
     {
         $token  = $this->login();
         $result = [];
-        $page   = 1;
-        $total  = null;
 
-        while (true) {
-            $body  = $this->fetchPage($token, $page);
-            $items = $body['data'] ?? [];
-            $total ??= (int) ($body['totalCount'] ?? 0);
-
+        $collect = function (array $items) use (&$result): void {
             foreach ($items as $item) {
                 $code = trim((string) ($item['item_code'] ?? ''));
-                $hpp  = (int) round((float) ($item['last_cogs'] ?? $item['average_cost'] ?? 0));
-                if ($code !== '') {
-                    $result[$code] = $hpp;
+                if ($code === '') {
+                    continue;
                 }
+                $result[$code] = (int) round((float) ($item['last_cogs'] ?? $item['average_cost'] ?? 0));
             }
+        };
 
-            Log::info('[Jubelio] HPP sync progress', ['page' => $page, 'fetched' => count($result), 'total' => $total]);
-
-            if (count($result) >= $total || empty($items)) {
-                break;
-            }
-
-            $page++;
-            sleep(1); // hindari rate-limit
-        }
+        $this->fetchAllPagesPooled(
+            fetchOne: fn (int $p) => $this->fetchPage($token, $p),
+            buildPooled: fn ($pool, int $p) => $pool->as((string) $p)
+                ->withoutVerifying()->timeout(90)
+                ->withHeaders(['Authorization' => $token])
+                ->get(self::INV_URL, [
+                    'page'           => $p,
+                    'page_size'      => self::PAGE_SIZE,
+                    'sort_direction' => 'NONE',
+                ]),
+            collect: $collect,
+            pageSize: self::PAGE_SIZE,
+            label: 'HPP',
+        );
 
         Log::info('[Jubelio] HPP sync selesai', ['total_sku' => count($result)]);
 
