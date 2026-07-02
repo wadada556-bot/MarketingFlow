@@ -524,7 +524,8 @@ class DashboardController extends Controller
         if (!empty($parentSkus)) {
             // Stok + HPP dari tabel lokal jubelio_inventory (disync berkala via
             // jubelio:sync-inventory) — query DB murah, tidak perlu cache/live API lagi.
-            $rows = JubelioInventory::whereIn('parent_sku', array_map('strtoupper', $parentSkus))->get();
+            // Cocokkan via match_sku (konsisten dgn orders.sku_parent & products.parent_sku).
+            $rows = JubelioInventory::whereIn('match_sku', array_map('strtoupper', $parentSkus))->get();
 
             if ($rows->isEmpty() && JubelioInventory::count() === 0) {
                 // Tabel belum pernah disync sama sekali
@@ -535,7 +536,7 @@ class DashboardController extends Controller
                 $stockData = [];
                 $hppMap    = [];
                 foreach ($rows as $row) {
-                    $stockData[$row->parent_sku][] = ['sku' => $row->sku_code, 'qty' => $row->stok];
+                    $stockData[$row->match_sku][] = ['sku' => $row->sku_code, 'qty' => $row->stok];
                     $hppMap[$row->sku_code]         = $row->hpp;
                 }
 
@@ -617,8 +618,8 @@ class DashboardController extends Controller
             // ── PO data — dari jubelio_inventory lokal (sudah di-query di atas sbg $rows) ──
             $poData = [];
             foreach ($rows as $row) {
-                if (in_array($row->parent_sku, array_map('strtoupper', $alertSkus), true)) {
-                    $poData[$row->parent_sku][$row->sku_code] = $row->po_qty;
+                if (in_array($row->match_sku, array_map('strtoupper', $alertSkus), true)) {
+                    $poData[$row->match_sku][$row->sku_code] = $row->po_qty;
                 }
             }
 
