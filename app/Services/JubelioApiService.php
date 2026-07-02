@@ -388,17 +388,8 @@ class JubelioApiService
     {
         $token  = $this->login();
         $result = [];
-        $page   = 1;
-        $total  = null;
 
-        while (true) {
-            $body = $this->fetchPage($token, $page);
-            if (! is_array($body)) {
-                throw new \RuntimeException("[Jubelio] Respons tidak valid di halaman inventory {$page}.");
-            }
-            $items = $body['data'] ?? [];
-            $total ??= (int) ($body['totalCount'] ?? 0);
-
+        $collect = function (array $items) use (&$result): void {
             foreach ($items as $item) {
                 $code = trim((string) ($item['item_code'] ?? ''));
                 if ($code === '') {
@@ -411,16 +402,86 @@ class JubelioApiService
                     'variation_label' => $item['variation_values'][0]['value'] ?? null,
                 ];
             }
+        };
 
-            if (count($result) >= $total || empty($items)) {
-                break;
-            }
-
-            $page++;
-            sleep(2); // hindari rate-limit
-        }
+        $this->fetchAllPagesPooled(
+            fetchOne: fn (int $p) => $this->fetchPage($token, $p),
+            buildPooled: fn ($pool, int $p) => $pool->as((string) $p)
+                ->withoutVerifying()->timeout(90)
+                ->withHeaders(['Authorization' => $token])
+                ->get(self::INV_URL, [
+                    'page'           => $p,
+                    'page_size'      => self::PAGE_SIZE,
+                    'sort_direction' => 'NONE',
+                ]),
+            collect: $collect,
+            pageSize: self::PAGE_SIZE,
+            label: 'inventory',
+        );
 
         return $this->attachParentSku($result);
+    }
+
+    /**
+     * Paginator paralel untuk endpoint katalog Jubelio. Ambil halaman 1 dulu
+     * (baca totalCount), lalu sisa halaman di-pool per DETAIL_CONCURRENCY sambil
+     * menghormati rate limiter yang sama dgn sync orders — jauh lebih cepat dari
+     * loop sekuensial + sleep(2). Halaman yg gagal di pool di-fallback ke
+     * $fetchOne (yang punya retry/backoff sendiri).
+     *
+     * @param  callable(int): array                 $fetchOne     ambil 1 halaman (dgn retry) -> body JSON
+     * @param  callable(mixed, int): mixed          $buildPooled  bangun request pool utk 1 halaman
+     * @param  callable(array): void                $collect      akumulasi item dari body['data']
+     */
+    private function fetchAllPagesPooled(
+        callable $fetchOne,
+        callable $buildPooled,
+        callable $collect,
+        int $pageSize,
+        string $label,
+    ): void {
+        $first = $fetchOne(1);
+        if (! is_array($first)) {
+            throw new \RuntimeException("[Jubelio] Respons tidak valid di halaman {$label} 1.");
+        }
+        $collect($first['data'] ?? []);
+
+        $total      = (int) ($first['totalCount'] ?? 0);
+        $totalPages = $total > 0 ? (int) ceil($total / $pageSize) : 1;
+        if ($totalPages < 2) {
+            return;
+        }
+
+        foreach (array_chunk(range(2, $totalPages), self::DETAIL_CONCURRENCY) as $chunk) {
+            $this->rateGate(count($chunk));
+
+            $responses = Http::pool(fn ($pool) => array_map(
+                fn ($p) => $buildPooled($pool, $p),
+                $chunk
+            ));
+
+            $this->logReqs(count($chunk));
+
+            foreach ($chunk as $p) {
+                $resp = $responses[(string) $p] ?? null;
+                $body = ($resp instanceof \Illuminate\Http\Client\Response && $resp->successful())
+                    ? $resp->json()
+                    : $this->fetchOneFallback($fetchOne, $p, $label);
+                $collect($body['data'] ?? []);
+            }
+        }
+    }
+
+    /**
+     * Fallback saat 1 halaman gagal di pool: ambil ulang sekuensial (retry/backoff).
+     */
+    private function fetchOneFallback(callable $fetchOne, int $page, string $label): array
+    {
+        $body = $fetchOne($page);
+        if (! is_array($body)) {
+            throw new \RuntimeException("[Jubelio] Respons tidak valid di halaman {$label} {$page}.");
+        }
+        return $body;
     }
 
     /**
@@ -488,21 +549,11 @@ class JubelioApiService
      */
     public function fetchAllPo(): array
     {
-        $token       = $this->login();
-        $result      = [];
-        $page        = 1;
-        $total       = null;
-        $fetchedRows = 0;
-        $poPageSize  = self::PAGE_SIZE * 2;
+        $token      = $this->login();
+        $result     = [];
+        $poPageSize = self::PAGE_SIZE * 2;
 
-        while (true) {
-            $body = $this->fetchPoPage($token, $page, $poPageSize);
-            if (! is_array($body)) {
-                throw new \RuntimeException("[Jubelio] Respons tidak valid di halaman PO {$page}.");
-            }
-            $items = $body['data'] ?? [];
-            $total ??= (int) ($body['totalCount'] ?? 0);
-
+        $collect = function (array $items) use (&$result): void {
             foreach ($items as $item) {
                 $code = trim((string) ($item['item_code'] ?? ''));
                 if ($code === '') {
@@ -514,16 +565,27 @@ class JubelioApiService
 
                 $result[$code] = ($result[$code] ?? 0) + $outstanding;
             }
+        };
 
-            $fetchedRows += count($items);
-
-            if ($fetchedRows >= $total || empty($items)) {
-                break;
-            }
-
-            $page++;
-            sleep(2); // hindari rate-limit
-        }
+        $this->fetchAllPagesPooled(
+            fetchOne: fn (int $p) => $this->fetchPoPage($token, $p, $poPageSize),
+            buildPooled: fn ($pool, int $p) => $pool->as((string) $p)
+                ->withoutVerifying()->timeout(90)
+                ->withHeaders(['Authorization' => $token, 'accept' => 'application/json'])
+                ->get(self::PO_URL, [
+                    'page'           => $p,
+                    'page_size'      => $poPageSize,
+                    'sort_by'        => 'item_name',
+                    'sort_direction' => 'ASC',
+                    'q'              => '',
+                    'brand'          => '',
+                    'otherBrand'     => '',
+                    'categoryId'     => '',
+                ]),
+            collect: $collect,
+            pageSize: $poPageSize,
+            label: 'PO',
+        );
 
         return $result;
     }
