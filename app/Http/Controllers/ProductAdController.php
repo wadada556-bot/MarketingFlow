@@ -10,6 +10,7 @@ use App\Models\JubelioInventory;
 use App\Models\Product;
 use App\Models\ProductAd;
 use App\Models\Store;
+use App\Support\SkuMatch;
 use App\Services\DailySalesQueryService;
 use App\Services\ProductAdService;
 use Illuminate\Http\Request;
@@ -154,30 +155,25 @@ class ProductAdController extends Controller
             return ['stock' => [], 'sales' => [], 'storeSales' => [], 'po' => [], 'hpp' => []];
         }
 
-        // Cocokkan lewat match_sku (sku_code dinormalisasi strip "-\d+$") — konsisten
-        // dgn orders.sku_parent & products.parent_sku. parent_sku dari grouping
-        // Jubelio (LCP) tak selalu ter-strip utk produk 1-varian suffix "-N".
-        $rows = JubelioInventory::whereIn('match_sku', array_map('strtoupper', $skus))->get();
+        // Produk memiliki semua varian yang KODE-nya diawali parent_sku-nya
+        // (penomoran SKU Jubelio tak konsisten — lihat App\Support\SkuMatch).
+        $q = JubelioInventory::query();
+        SkuMatch::wherePrefix($q, 'sku_code', $skus);
+        $rows = $q->get();
 
-        // Kelompokkan by match_sku UPPER dulu (kolom DB selalu uppercase), lalu
-        // dipetakan balik ke casing asli $skus supaya key hasil match dengan pemanggil.
-        $stockByUpper = [];
-        $hppByUpper   = [];
-        $poByUpper    = [];
+        // Pastikan tiap $sku pemanggil punya entri (walau kosong), lalu bucket
+        // tiap baris ke produk pemiliknya (prefix terpanjang yang cocok).
+        $stock = array_fill_keys($skus, []);
+        $hpp   = array_fill_keys($skus, []);
+        $po    = array_fill_keys($skus, []);
         foreach ($rows as $row) {
-            $stockByUpper[$row->match_sku][]            = ['sku' => $row->sku_code, 'qty' => $row->stok];
-            $hppByUpper[$row->match_sku][$row->sku_code] = $row->hpp;
-            $poByUpper[$row->match_sku][$row->sku_code]  = $row->po_qty;
-        }
-
-        $stock = [];
-        $hpp   = [];
-        $po    = [];
-        foreach ($skus as $sku) {
-            $upper = strtoupper($sku);
-            $stock[$sku] = $stockByUpper[$upper] ?? [];
-            $hpp[$sku]   = $hppByUpper[$upper]   ?? [];
-            $po[$sku]    = $poByUpper[$upper]    ?? [];
+            $owner = SkuMatch::owner($row->sku_code, $skus);
+            if ($owner === null) {
+                continue;
+            }
+            $stock[$owner][]             = ['sku' => $row->sku_code, 'qty' => $row->stok];
+            $hpp[$owner][$row->sku_code] = $row->hpp;
+            $po[$owner][$row->sku_code]  = $row->po_qty;
         }
 
         $fetchedSales = $this->dailySalesQueryService->getForParentSkus($skus);

@@ -8,6 +8,7 @@ use App\Models\ProductAd;
 use App\Models\User;
 use App\Notifications\StockAlertNotification;
 use App\Services\DailySalesQueryService;
+use App\Support\SkuMatch;
 use Illuminate\Console\Command;
 
 class NotifyStockCheck extends Command
@@ -36,15 +37,20 @@ class NotifyStockCheck extends Command
         $this->info('[Stock Check] Ambil stok+PO dari jubelio_inventory untuk ' . count($parentSkus) . ' parent SKU...');
 
         // Stok + PO dari tabel lokal jubelio_inventory (disync jubelio:sync-inventory).
-        // Kolom DB selalu uppercase -> map balik ke casing asli $parentSkus.
-        // Cocokkan via match_sku (konsisten dgn orders.sku_parent & products.parent_sku).
-        $rows = JubelioInventory::whereIn('match_sku', array_map('strtoupper', $parentSkus))->get();
+        // Produk memiliki varian yang KODE-nya diawali parent_sku (lihat SkuMatch).
+        $q = JubelioInventory::query();
+        SkuMatch::wherePrefix($q, 'sku_code', $parentSkus);
+        $rows = $q->get();
 
-        $stockByUpper = [];
-        $poByUpper    = [];
+        $stockByParent = [];
+        $poByParent    = [];
         foreach ($rows as $row) {
-            $stockByUpper[$row->match_sku][]            = ['sku' => $row->sku_code, 'qty' => $row->stok];
-            $poByUpper[$row->match_sku][$row->sku_code]  = $row->po_qty;
+            $owner = SkuMatch::owner($row->sku_code, $parentSkus);
+            if ($owner === null) {
+                continue;
+            }
+            $stockByParent[$owner][]             = ['sku' => $row->sku_code, 'qty' => $row->stok];
+            $poByParent[$owner][$row->sku_code]  = $row->po_qty;
         }
 
         $salesTotal = $dailySalesQueryService->getForParentSkus($parentSkus)['total'];
@@ -55,12 +61,12 @@ class NotifyStockCheck extends Command
         $withPo     = [];
 
         foreach ($parentSkus as $parentSku) {
-            $variants = $stockByUpper[strtoupper($parentSku)] ?? [];
+            $variants = $stockByParent[$parentSku] ?? [];
             if (empty($variants)) {
                 continue;
             }
 
-            $poMap    = $poByUpper[strtoupper($parentSku)] ?? [];
+            $poMap    = $poByParent[$parentSku] ?? [];
             $sales90d = $salesTotal[$parentSku]['90d']     ?? [];
 
             foreach ($variants as $v) {

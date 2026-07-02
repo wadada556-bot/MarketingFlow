@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\SkuMatch;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -38,20 +39,28 @@ class DailySalesQueryService
             '90d'       => [$today->copy()->subDays(89), $today],
         ];
 
-        // `orders` row-level (1 baris = 1 unit); agregasi di SQL agar setara
-        // daily_sku_sales lama & alias kolom -> nama yang dipakai logika di bawah.
-        $rows = DB::table('orders')
-            ->whereIn('sku_parent', $parentSkus)
+        // `orders` row-level (1 baris = 1 unit); agregasi di SQL. Cocokkan varian
+        // ke produk berbasis PREFIX kode (sku_variant diawali parent_sku) — konvensi
+        // sku_parter lama (strip "-\d+$") tak menangkap SKU spt HTT1/BM-LCAZD01.
+        // Lihat App\Support\SkuMatch.
+        $query = DB::table('orders')
             ->where('channel_id', $channelId)
             ->where('sales_date', '>=', $today->copy()->subDays(89)->toDateString())
-            ->selectRaw('sku_parent as parent_sku, sku_variant as sku, store_id, store_name, sales_date, SUM(qty) as qty_terjual')
-            ->groupBy('sku_parent', 'sku_variant', 'store_id', 'store_name', 'sales_date')
-            ->get();
+            ->selectRaw('sku_variant as sku, store_id, store_name, sales_date, SUM(qty) as qty_terjual')
+            ->groupBy('sku_variant', 'store_id', 'store_name', 'sales_date');
+        SkuMatch::wherePrefix($query, 'sku_variant', $parentSkus);
+        $rows = $query->get();
 
         $total  = [];
         $stores = [];
 
         foreach ($rows as $row) {
+            // Tentukan produk pemilik varian ini (prefix terpanjang yang cocok).
+            $parent = SkuMatch::owner($row->sku, $parentSkus);
+            if ($parent === null) {
+                continue;
+            }
+
             $date = Carbon::parse($row->sales_date);
 
             foreach ($ranges as $period => [$from, $to]) {
@@ -59,12 +68,12 @@ class DailySalesQueryService
                     continue;
                 }
 
-                $total[$row->parent_sku][$period][$row->sku] =
-                    ($total[$row->parent_sku][$period][$row->sku] ?? 0) + (int) $row->qty_terjual;
+                $total[$parent][$period][$row->sku] =
+                    ($total[$parent][$period][$row->sku] ?? 0) + (int) $row->qty_terjual;
 
-                $stores[$row->parent_sku][$row->store_id]['name'] ??= $this->cleanStore($row->store_name);
-                $stores[$row->parent_sku][$row->store_id]['sales'][$period][$row->sku] =
-                    ($stores[$row->parent_sku][$row->store_id]['sales'][$period][$row->sku] ?? 0) + (int) $row->qty_terjual;
+                $stores[$parent][$row->store_id]['name'] ??= $this->cleanStore($row->store_name);
+                $stores[$parent][$row->store_id]['sales'][$period][$row->sku] =
+                    ($stores[$parent][$row->store_id]['sales'][$period][$row->sku] ?? 0) + (int) $row->qty_terjual;
             }
         }
 

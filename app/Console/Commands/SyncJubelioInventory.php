@@ -42,9 +42,6 @@ class SyncJubelioInventory extends Command
             $rows[] = [
                 'sku_code'        => $sku,
                 'parent_sku'      => $data['parent_sku'],
-                // Kunci join yang konsisten dgn orders.sku_parent & products.parent_sku.
-                // Normalisasi PERSIS seperti OrderSyncService::parentSku().
-                'match_sku'       => strtoupper(preg_replace('/-\d+$/', '', (string) $sku) ?? (string) $sku),
                 'item_group_id'   => $data['item_group_id'] ?: null,
                 'variation_label' => $data['variation_label'],
                 'stok'            => $data['stok'],
@@ -60,7 +57,7 @@ class SyncJubelioInventory extends Command
             JubelioInventory::upsert(
                 $chunk,
                 ['sku_code'],
-                ['parent_sku', 'match_sku', 'item_group_id', 'variation_label', 'stok', 'hpp', 'po_qty', 'synced_at', 'updated_at']
+                ['parent_sku', 'item_group_id', 'variation_label', 'stok', 'hpp', 'po_qty', 'synced_at', 'updated_at']
             );
         }
 

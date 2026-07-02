@@ -9,6 +9,7 @@ use App\Models\JubelioInventory;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\DailyStoreStat;
+use App\Support\SkuMatch;
 use App\Services\DailySalesQueryService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -524,8 +525,10 @@ class DashboardController extends Controller
         if (!empty($parentSkus)) {
             // Stok + HPP dari tabel lokal jubelio_inventory (disync berkala via
             // jubelio:sync-inventory) — query DB murah, tidak perlu cache/live API lagi.
-            // Cocokkan via match_sku (konsisten dgn orders.sku_parent & products.parent_sku).
-            $rows = JubelioInventory::whereIn('match_sku', array_map('strtoupper', $parentSkus))->get();
+            // Produk memiliki varian yang KODE-nya diawali parent_sku (lihat SkuMatch).
+            $q = JubelioInventory::query();
+            SkuMatch::wherePrefix($q, 'sku_code', $parentSkus);
+            $rows = $q->get();
 
             if ($rows->isEmpty() && JubelioInventory::count() === 0) {
                 // Tabel belum pernah disync sama sekali
@@ -536,13 +539,16 @@ class DashboardController extends Controller
                 $stockData = [];
                 $hppMap    = [];
                 foreach ($rows as $row) {
-                    $stockData[$row->match_sku][] = ['sku' => $row->sku_code, 'qty' => $row->stok];
-                    $hppMap[$row->sku_code]         = $row->hpp;
+                    $owner = SkuMatch::owner($row->sku_code, $parentSkus);
+                    if ($owner !== null) {
+                        $stockData[$owner][] = ['sku' => $row->sku_code, 'qty' => $row->stok];
+                    }
+                    $hppMap[$row->sku_code] = $row->hpp;
                 }
 
                 foreach ($products as $product) {
                     $parentSku     = $product->parent_sku;
-                    $allVariants   = $stockData[strtoupper($parentSku)] ?? [];
+                    $allVariants   = $stockData[$parentSku] ?? [];
                     $alertVariants = array_filter($allVariants, fn ($v) => $v['qty'] <= self::QTY_WARNING);
 
                     if (empty($alertVariants)) {
@@ -618,8 +624,9 @@ class DashboardController extends Controller
             // ── PO data — dari jubelio_inventory lokal (sudah di-query di atas sbg $rows) ──
             $poData = [];
             foreach ($rows as $row) {
-                if (in_array($row->match_sku, array_map('strtoupper', $alertSkus), true)) {
-                    $poData[$row->match_sku][$row->sku_code] = $row->po_qty;
+                $owner = SkuMatch::owner($row->sku_code, $alertSkus);
+                if ($owner !== null) {
+                    $poData[$owner][$row->sku_code] = $row->po_qty;
                 }
             }
 
@@ -633,7 +640,7 @@ class DashboardController extends Controller
                 $rank2  = $sorted->keys()->get(1);
                 $rank3  = $sorted->keys()->get(2);
 
-                $variantPoMap = $poData[strtoupper($_a['parent_sku'])] ?? [];
+                $variantPoMap = $poData[$_a['parent_sku']] ?? [];
 
                 $_a['variants'] = array_map(function ($v) use ($rank1, $rank2, $rank3, $variantPoMap) {
                     $v['rank_90d'] = match (true) {
