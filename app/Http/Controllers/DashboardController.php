@@ -608,7 +608,7 @@ class DashboardController extends Controller
             $alertSkus     = array_column($stockAlerts, 'parent_sku');
             $salesCacheKey = 'dashboard_local_sales_' . md5(implode(',', $alertSkus));
 
-            // Sales dari daily_sku_sales lokal (bukan ERP lagi) — query DB murah, cache tetap
+            // Sales dari tabel orders lokal (bukan ERP lagi) — query DB murah, cache tetap
             // dipasang untuk menghindari query berulang tiap load dashboard.
             $salesData = Cache::remember($salesCacheKey, 1800, function () use ($alertSkus) {
                 return $this->dailySalesQueryService->getForParentSkus($alertSkus)['total'];

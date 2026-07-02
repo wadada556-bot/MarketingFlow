@@ -12,13 +12,13 @@ class JubelioApiService
     private const PO_URL    = 'https://open.jubelio.com/core-api/inventory/v2/inbound-purchase-not-fulfilled/';
     private const PAGE_SIZE = 100;
 
-    // Endpoint Sales (dipakai fitur History Penjualan)
-    private const SALES_LIST_URL   = 'https://open.jubelio.com/core-api/sales/v2/invoices/';
-    private const SALES_DETAIL_URL = 'https://open.jubelio.com/core-api/sales/v2/invoices/';
+    // Endpoint Orders (pesanan masuk — dipakai fitur tabel `orders`)
+    private const ORDERS_LIST_URL  = 'https://open.jubelio.com/core-api/sales/v2/orders/';
+    private const ORDER_DETAIL_URL = 'https://open.jubelio.com/core-api/sales/orders/'; // catatan: TANPA /v2/
 
-    // Rate limit Jubelio = 600 req/menit. Pakai 560 sebagai plafon (sisakan margin).
-    private const RATE_MAX_PER_MIN = 560;
-    private const DETAIL_CONCURRENCY = 8;
+    // Rate limit Jubelio = 1000 req/menit. Pakai 950 sebagai plafon (sisakan margin).
+    private const RATE_MAX_PER_MIN = 950;
+    private const DETAIL_CONCURRENCY = 12;
 
     /** @var array<float> timestamp (epoch detik) tiap request, untuk sliding-window limiter */
     private array $reqLog = [];
@@ -51,20 +51,66 @@ class JubelioApiService
     }
 
     /**
-     * Ambil detail BANYAK invoice secara paralel (Http::pool) dengan menghormati
-     * rate-limit 560/menit. Jauh lebih cepat dari ambil satu per satu.
-     *
-     * @param  array<int>  $ids  doc_id dari endpoint invoices
-     * @return array<int, array>  [doc_id => detail]
+     * Login sekali, lalu pakai token-nya untuk banyak panggilan (list + detail).
      */
-    public function getInvoiceDetailsBatch(string $token, array $ids, int $concurrency = self::DETAIL_CONCURRENCY): array
+    public function getToken(): string
+    {
+        return $this->login();
+    }
+
+    /**
+     * Ambil satu halaman daftar ORDER (pesanan masuk) dengan filter channel + tanggal.
+     * List ini hanya header — SKU/item ada di detail (getOrderDetailsBatch).
+     * Tiap record mengandung: salesorder_id, channel_id, channel_name, store_id,
+     * store_name, transaction_date, is_canceled.
+     *
+     * @param  array<int>  $channelIds
+     * @param  string      $fromIsoUtc  ISO UTC, mis. '2026-06-30T17:00:00.000Z'
+     * @param  string      $toIsoUtc    ISO UTC
+     * @return array{data: array, totalCount: int}
+     */
+    public function getSalesOrdersPage(string $token, array $channelIds, string $fromIsoUtc, string $toIsoUtc, int $page, int $pageSize = self::PAGE_SIZE): array
+    {
+        $query = [
+            'q'                     => '',
+            'page'                  => $page,
+            'page_size'             => $pageSize,
+            'channel_ids'           => array_values($channelIds),
+            'sku_filter'            => 'false',
+            'transaction_date_from' => $fromIsoUtc,
+            'transaction_date_to'   => $toIsoUtc,
+            'sort_by'               => 'transaction_date',
+            'sort_direction'        => 'DESC',
+        ];
+
+        $body = $this->getWithRetry($token, self::ORDERS_LIST_URL, $query);
+
+        return [
+            'data'       => $body['data'] ?? [],
+            'totalCount' => (int) ($body['totalCount'] ?? 0),
+        ];
+    }
+
+    /**
+     * Ambil detail BANYAK order secara paralel (Http::pool) menghormati rate-limit,
+     * pakai endpoint order detail (sales/orders/{id}, TANPA /v2/). Tiap detail punya
+     * array 'items' berisi SKU.
+     *
+     * Order yang tetap gagal setelah beberapa ronde retry TIDAK melempar exception —
+     * cukup di-skip (tidak ada di hasil), biar caller bisa menyimpan yang berhasil dan
+     * mencoba lagi sisanya di run berikutnya (sync incremental self-healing).
+     *
+     * @param  array<int>  $ids  salesorder_id dari getSalesOrdersPage
+     * @return array<int, array>  [salesorder_id => detail]  (hanya yang berhasil)
+     */
+    public function getOrderDetailsBatch(string $token, array $ids, int $concurrency = self::DETAIL_CONCURRENCY): array
     {
         $results = [];
         $pending = array_values(array_unique($ids));
 
         for ($round = 0; $round < 4 && ! empty($pending); $round++) {
             if ($round > 0) {
-                Log::warning('[Jubelio] batch detail retry, sisa ' . count($pending));
+                Log::warning('[Jubelio] batch order-detail retry, sisa ' . count($pending));
                 sleep(20);
             }
 
@@ -77,7 +123,7 @@ class JubelioApiService
                     fn ($id) => $pool->as((string) $id)
                         ->withoutVerifying()->timeout(90)
                         ->withHeaders(['Authorization' => $token, 'accept' => 'application/json'])
-                        ->get(self::SALES_DETAIL_URL . $id),
+                        ->get(self::ORDER_DETAIL_URL . $id),
                     $chunk
                 ));
 
@@ -97,59 +143,10 @@ class JubelioApiService
         }
 
         if (! empty($pending)) {
-            throw new \RuntimeException('[Jubelio] gagal ambil detail untuk ' . count($pending) . ' invoice.');
+            Log::warning('[Jubelio] ' . count($pending) . ' order detail di-skip (gagal setelah retry), akan dicoba lagi run berikutnya.');
         }
 
         return $results;
-    }
-
-    /**
-     * Login sekali, lalu pakai token-nya untuk banyak panggilan (list + detail).
-     */
-    public function getToken(): string
-    {
-        return $this->login();
-    }
-
-    /**
-     * Ambil satu halaman daftar invoice (header saja) dengan filter channel + tanggal.
-     * Semua status diambil; invoice retur disaring di SalesSyncService lewat flag is_return.
-     * Tiap record mengandung: doc_id, source (=channel_id), store_id, store_name, transaction_date, is_return.
-     *
-     * @param  array<int>  $channelIds        mis. [128, 131076]
-     * @param  string      $fromIsoUtc        ISO UTC, mis. '2025-12-31T17:00:00.000Z'
-     * @param  string      $toIsoUtc          ISO UTC
-     * @return array{data: array, totalCount: int}
-     */
-    public function getSalesInvoicesPage(string $token, array $channelIds, string $fromIsoUtc, string $toIsoUtc, int $page, int $pageSize = self::PAGE_SIZE): array
-    {
-        $query = [
-            'q'                     => '',
-            'page'                  => $page,
-            'page_size'             => $pageSize,
-            'channel_ids'           => array_values($channelIds),
-            'transaction_date_from' => $fromIsoUtc,
-            'transaction_date_to'   => $toIsoUtc,
-            'sort_by'               => 'transaction_date',
-            'sort_direction'        => 'DESC',
-        ];
-
-        $body = $this->getWithRetry($token, self::SALES_LIST_URL, $query);
-
-        return [
-            'data'       => $body['data'] ?? [],
-            'totalCount' => (int) ($body['totalCount'] ?? 0),
-        ];
-    }
-
-    /**
-     * Ambil detail satu invoice (termasuk array items / SKU).
-     *
-     * @return array  full invoice; items ada di key 'items'
-     */
-    public function getInvoiceDetail(string $token, int $docId): array
-    {
-        return $this->getWithRetry($token, self::SALES_DETAIL_URL . $docId);
     }
 
     /**

@@ -87,7 +87,7 @@ class ProductAdController extends Controller
 
             // Penjualan ditotal HANYA dari toko tempat iklan ini benar-benar jalan
             // (bukan semua toko yang pernah menjual SKU ini). Cocokkan via "contains"
-            // (bukan exact) karena nama toko di daily_sku_sales bisa punya prefix
+            // (bukan exact) karena nama toko di orders bisa punya prefix
             // ekstra spt "TT " (mis. "TT YARRA STORE" dari Tokopedia vs "YARRA STORE").
             $adStoreNames = $ad->stores->pluck('name')->all();
             $matchingStoreSales = array_filter(
@@ -148,7 +148,7 @@ class ProductAdController extends Controller
 
     /**
      * Stock+HPP+PO dari tabel lokal jubelio_inventory (disync berkala via
-     * jubelio:sync-inventory, tiap 30 menit) + sales dari daily_sku_sales lokal
+     * jubelio:sync-inventory, tiap 30 menit) + sales dari tabel orders lokal
      * (total & per toko). Semua query DB murah — tidak perlu cache lagi seperti
      * saat masih live-fetch ke API.
      *

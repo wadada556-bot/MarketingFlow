@@ -3,21 +3,21 @@
 namespace App\Console\Commands;
 
 use App\Models\SalesSyncState;
-use App\Services\SalesSyncService;
+use App\Services\OrderSyncService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
-class BackfillSales extends Command
+class BackfillOrders extends Command
 {
-    protected $signature = 'sales:backfill
+    protected $signature = 'orders:backfill
         {--from=2026-01-01 : Tanggal mulai (WIB)}
         {--to= : Tanggal akhir (WIB), default hari ini}
-        {--concurrency=8 : Jumlah detail order diambil paralel per batch}
+        {--concurrency=12 : Jumlah detail order diambil paralel per batch}
         {--fresh : Abaikan checkpoint, mulai dari awal}';
 
-    protected $description = 'Backfill histori penjualan TikTok+Tokopedia per-bulan (resumable) ke daily_sku_sales';
+    protected $description = 'Backfill histori pesanan masuk per-hari (resumable) ke tabel orders';
 
-    public function handle(SalesSyncService $sales): int
+    public function handle(OrderSyncService $orders): int
     {
         $from = Carbon::parse($this->option('from'), 'Asia/Jakarta')->startOfDay();
         $to   = $this->option('to')
@@ -29,19 +29,19 @@ class BackfillSales extends Command
             return self::FAILURE;
         }
 
-        $sales->setConcurrency((int) $this->option('concurrency'));
+        $orders->setConcurrency((int) $this->option('concurrency'));
 
-        $state = SalesSyncState::firstOrCreate(['key' => 'backfill']);
+        $state = SalesSyncState::firstOrCreate(['key' => 'orders:backfill']);
         if ($this->option('fresh')) {
             $state->update(['cursor_date' => null, 'status' => 'idle', 'note' => null]);
         }
-        // cursor_date = awal bulan terakhir yang SUDAH selesai (kita jalan dari baru ke lama)
+        // cursor_date = hari terakhir yang SUDAH selesai (kita jalan dari baru ke lama)
         $resumeBefore = (! $this->option('fresh') && $state->cursor_date)
             ? $state->cursor_date->copy()
             : null;
 
         $days = $this->dayRanges($from, $to); // urut terbaru -> terlama
-        $this->info('[Backfill] ' . count($days) . " hari dari {$from->toDateString()} s/d {$to->toDateString()}"
+        $this->info('[Backfill Orders] ' . count($days) . " hari dari {$from->toDateString()} s/d {$to->toDateString()}"
             . ($resumeBefore ? " (lanjut dari sebelum {$resumeBefore->toDateString()})" : ''));
 
         $state->update(['status' => 'running']);
@@ -59,13 +59,13 @@ class BackfillSales extends Command
             $this->info("  > {$tgl}");
 
             try {
-                $res = $sales->syncRange($dStart, $dEnd, SalesSyncService::CHANNELS, function ($page, $collected, $total) {
-                    $this->line("      halaman {$page}: {$collected}/{$total} order");
+                $res = $orders->syncRange($dStart, $dEnd, OrderSyncService::CHANNELS, function (string $msg) {
+                    $this->line("      {$msg}");
                 });
             } catch (\Throwable $e) {
                 $state->update(['status' => 'failed', 'note' => "{$tgl}: {$e->getMessage()}"]);
                 $this->error("  Gagal di {$tgl}: {$e->getMessage()}");
-                $this->warn('  Jalankan ulang `sales:backfill` untuk melanjutkan dari titik ini.');
+                $this->warn('  Jalankan ulang `orders:backfill` untuk melanjutkan dari titik ini.');
                 return self::FAILURE;
             }
 
@@ -75,14 +75,14 @@ class BackfillSales extends Command
             $state->update([
                 'cursor_date'    => $tgl,
                 'last_synced_at' => now(),
-                'note'           => "{$tgl}: {$res['orders']} order, {$res['rows']} baris",
+                'note'           => "{$tgl}: {$res['fetched']} fetch, {$res['skipped']} skip, {$res['rows']} baris",
             ]);
 
-            $this->info("    selesai {$tgl}: {$res['orders']} order, {$res['rows']} baris");
+            $this->info("    selesai {$tgl}: {$res['fetched']} fetch, {$res['skipped']} skip, {$res['failed']} gagal, {$res['rows']} baris");
         }
 
         $state->update(['status' => 'done', 'last_synced_at' => now()]);
-        $this->info("[Backfill] SELESAI. Total {$grandOrders} order, {$grandRows} baris.");
+        $this->info("[Backfill Orders] SELESAI. Total {$grandOrders} order, {$grandRows} baris.");
 
         return self::SUCCESS;
     }

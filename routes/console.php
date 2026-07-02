@@ -15,6 +15,6 @@ Schedule::command('notify:stock-check')->dailyAt('09:00')->timezone('Asia/Jakart
 Schedule::command('notify:stock-check')->dailyAt('16:00')->timezone('Asia/Jakarta')->withoutOverlapping();
 // Stok+HPP+PO Jubelio (full katalog) -> tabel jubelio_inventory, dipakai Product Ads & Dashboard
 Schedule::command('jubelio:sync-inventory')->everyThirtyMinutes()->withoutOverlapping();
-// Rolling 3 hari: tangkap order yang baru jadi COMPLETED tanpa men-scan seluruh bulan
-// (volume ~3.8rb order/hari -> jendela kecil agar beban API wajar). Tunable lewat --days.
-Schedule::command('sales:sync --days=3 --concurrency=8')->dailyAt('09:00')->timezone('Asia/Jakarta')->withoutOverlapping();
+// Rolling 3 hari ke tabel `orders` (pesanan masuk). Sync incremental (last_modified)
+// -> hanya order baru/berubah yang di-fetch, jadi murah walau volume ~4rb order/hari.
+Schedule::command('orders:sync --days=3 --concurrency=12')->dailyAt('09:00')->timezone('Asia/Jakarta')->withoutOverlapping();

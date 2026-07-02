@@ -6,8 +6,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Baca penjualan dari tabel lokal `daily_sku_sales` (sync harian dari Jubelio,
- * lihat SalesSyncService) untuk kebutuhan Product Ads — gantikan endpoint
+ * Baca penjualan dari tabel lokal `orders` (sync pesanan masuk dari Jubelio,
+ * lihat OrderSyncService) untuk kebutuhan Product Ads — gantikan endpoint
  * ERP lama `/api/tiktok/sku-qty`.
  */
 class DailySalesQueryService
@@ -38,11 +38,14 @@ class DailySalesQueryService
             '90d'       => [$today->copy()->subDays(89), $today],
         ];
 
-        $rows = DB::table('daily_sku_sales')
-            ->whereIn('parent_sku', $parentSkus)
+        // `orders` row-level (1 baris = 1 unit); agregasi di SQL agar setara
+        // daily_sku_sales lama & alias kolom -> nama yang dipakai logika di bawah.
+        $rows = DB::table('orders')
+            ->whereIn('sku_parent', $parentSkus)
             ->where('channel_id', $channelId)
             ->where('sales_date', '>=', $today->copy()->subDays(89)->toDateString())
-            ->select('parent_sku', 'sku', 'store_id', 'store_name', 'sales_date', 'qty_terjual')
+            ->selectRaw('sku_parent as parent_sku, sku_variant as sku, store_id, store_name, sales_date, SUM(qty) as qty_terjual')
+            ->groupBy('sku_parent', 'sku_variant', 'store_id', 'store_name', 'sales_date')
             ->get();
 
         $total  = [];

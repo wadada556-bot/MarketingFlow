@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\FilterDateRangeRequest;
-use App\Models\DailySkuSales;
+use App\Models\Order;
 use Carbon\Carbon;
 
 class SalesHistoryController extends Controller
@@ -19,7 +19,7 @@ class SalesHistoryController extends Controller
         $today = Carbon::today();
 
         // Batas data yang benar-benar tersedia: tanggal tersedia awal s/d hari ini
-        $earliestDate = DailySkuSales::min('sales_date');
+        $earliestDate = Order::min('sales_date');
         $minDate      = $earliestDate ? Carbon::parse($earliestDate)->toDateString() : $today->toDateString();
         $maxDate      = $today->toDateString();
 
@@ -41,15 +41,15 @@ class SalesHistoryController extends Controller
         $tiktokId = 131076;
         $storeId  = $request->filled('store_id') ? (int) $request->query('store_id') : null;
 
-        // Agregasi per (parent_sku, sku, toko, channel) dalam rentang
-        $rows = DailySkuSales::query()
+        // Agregasi per (parent_sku, sku, toko, channel) dalam rentang.
+        // Alias sku_parent/sku_variant -> parent_sku/sku agar sisa kode & view tak berubah.
+        $rows = Order::query()
             ->whereBetween('sales_date', [$from, $to])
             ->where('channel_id', $tiktokId)
             ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
-            ->selectRaw('parent_sku, sku, store_id, store_name, channel_id, channel_name,
-                         MAX(product_name) as product_name,
-                         SUM(qty_terjual) as qty')
-            ->groupBy('parent_sku', 'sku', 'store_id', 'store_name', 'channel_id', 'channel_name')
+            ->selectRaw('sku_parent as parent_sku, sku_variant as sku, store_id, store_name, channel_id, channel_name,
+                         SUM(qty) as qty')
+            ->groupBy('sku_parent', 'sku_variant', 'store_id', 'store_name', 'channel_id', 'channel_name')
             ->get();
 
         // Susun bertingkat: produk (parent_sku) → variasi (sku); qty dipivot per toko
@@ -61,7 +61,7 @@ class SalesHistoryController extends Controller
 
             $products[$pkey] ??= [
                 'parent_sku'   => $pkey,
-                'product_name' => $r->product_name,
+                'product_name' => '',   // orders tak simpan nama produk; cari via SKU saja
                 'qty'          => 0,
                 'channels'     => [],
                 'store_qty'    => [],   // total per toko (untuk baris TOTAL)
@@ -72,9 +72,6 @@ class SalesHistoryController extends Controller
             $products[$pkey]['channels'][(int) $r->channel_id] = self::CHANNELS[(int) $r->channel_id]
                 ?? ($r->channel_name ?: $r->channel_id);
             $products[$pkey]['store_qty'][$sid] = ($products[$pkey]['store_qty'][$sid] ?? 0) + $qty;
-            if (empty($products[$pkey]['product_name']) && $r->product_name) {
-                $products[$pkey]['product_name'] = $r->product_name;
-            }
 
             $vkey = $r->sku;
             $products[$pkey]['variants'][$vkey] ??= [
@@ -122,7 +119,7 @@ class SalesHistoryController extends Controller
         ];
 
         // Kolom toko = seluruh toko TikTok (stabil di tiap tabel; sel kosong → "-")
-        $storeColumns = DailySkuSales::query()
+        $storeColumns = Order::query()
             ->selectRaw('store_id, MAX(store_name) as store_name')
             ->where('channel_id', $tiktokId)
             ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
@@ -132,7 +129,7 @@ class SalesHistoryController extends Controller
             ->get();
 
         // Opsi filter toko (semua toko TikTok)
-        $storeOptions = DailySkuSales::query()
+        $storeOptions = Order::query()
             ->selectRaw('store_id, MAX(store_name) as store_name')
             ->where('channel_id', $tiktokId)
             ->whereNotNull('store_name')
