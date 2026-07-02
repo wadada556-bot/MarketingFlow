@@ -118,41 +118,6 @@
     .sh-medal-2 { background: #C0C0C0; color: #4d4d4d; }
     .sh-medal-3 { background: #CD7F32; color: #4a2e12; }
 
-    /* ── Grup produk (per prefix) ── */
-    .sales-group { margin-bottom: 16px; }
-    .sh-group-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 14px 18px;
-        background: var(--md-secondary-container);
-        color: var(--md-on-secondary-container);
-        border-radius: var(--md-shape-lg);
-        cursor: pointer;
-        user-select: none;
-        transition: filter .12s;
-    }
-    .sh-group-head:hover { filter: brightness(0.97); }
-    .sh-group-title {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 17px;
-        font-weight: 700;
-        letter-spacing: .2px;
-        min-width: 0;
-    }
-    .sh-group-caret {
-        font-size: 14px;
-        transition: transform .18s;
-    }
-    .sh-group-head[aria-expanded="false"] .sh-group-caret { transform: rotate(-90deg); }
-    .sh-group-total { text-align: right; flex-shrink: 0; }
-    .sh-group-total-label { font-size: 11px; font-weight: 500; opacity: .8; }
-    .sh-group-total-value { font-size: 18px; font-weight: 700; line-height: 1.3; }
-    .sales-group-products { padding-top: 12px; }
-
     @media (max-width: 768px) {
         .sh-toolbar-actions { margin-left: 0; width: 100%; }
         .sh-search { flex: 1; min-width: 0; }
@@ -308,24 +273,8 @@
             <p style="font-size:12px;">Jalankan <code>php artisan sales:backfill</code> untuk menarik histori.</p>
         </div>
     @else
-        <div id="salesAccordion">
-            @foreach ($groups as $g)
-                @php $gid = 'g_' . md5($g['group']); @endphp
-                <div class="sales-group" data-group-qty="{{ $g['qty'] }}">
-                    <div class="sh-group-head" data-bs-toggle="collapse" data-bs-target="#{{ $gid }}"
-                         role="button" aria-expanded="true">
-                        <div class="sh-group-title">
-                            <i class="bi bi-chevron-down sh-group-caret"></i>
-                            <span>{{ $g['group'] }}</span>
-                        </div>
-                        <div class="sh-group-total">
-                            <div class="sh-group-total-label">Total Qty Terjual</div>
-                            <div class="sh-group-total-value">{{ number_format($g['qty'], 0, ',', '.') }}</div>
-                        </div>
-                    </div>
-                    <div id="{{ $gid }}" class="collapse show">
-                        <div class="accordion sales-group-products">
-            @foreach ($g['products'] as $p)
+        <div class="accordion" id="salesAccordion">
+            @foreach ($products as $p)
                 @php
                     $pid = 'p_' . md5($p['parent_sku']);
                     $exportRows = [];
@@ -432,10 +381,6 @@
                                     </table>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            @endforeach
                         </div>
                     </div>
                 </div>
@@ -583,12 +528,6 @@ document.getElementById('storeFilter').addEventListener('change', function () {
         document.querySelectorAll('.sales-product-item').forEach(function (el) {
             el.style.display = el.dataset.search.includes(q) ? '' : 'none';
         });
-        // Sembunyikan grup yang tak punya produk terlihat
-        document.querySelectorAll('.sales-group').forEach(function (grp) {
-            const items = grp.querySelectorAll('.sales-product-item');
-            const anyVisible = Array.from(items).some(el => el.style.display !== 'none');
-            grp.style.display = anyVisible ? '' : 'none';
-        });
     });
 
     // Global sort (reorder product accordion items) — toggle asc/desc
@@ -606,25 +545,12 @@ document.getElementById('storeFilter').addEventListener('change', function () {
             }
             const dir = this.dataset.dir;
 
-            const sortFn = (a, b) => {
+            const items = Array.from(container.querySelectorAll('.sales-product-item'));
+            items.sort((a, b) => {
                 const diff = Number(a.dataset[key]) - Number(b.dataset[key]);
                 return dir === 'asc' ? diff : -diff;
-            };
-
-            // Urutkan produk di dalam tiap grup
-            container.querySelectorAll('.sales-group-products').forEach(function (wrap) {
-                Array.from(wrap.querySelectorAll('.sales-product-item'))
-                    .sort(sortFn)
-                    .forEach(el => wrap.appendChild(el));
             });
-
-            // Urutkan grup-grupnya berdasarkan total qty grup
-            Array.from(container.querySelectorAll('.sales-group'))
-                .sort((a, b) => {
-                    const diff = Number(a.dataset.groupQty) - Number(b.dataset.groupQty);
-                    return dir === 'asc' ? diff : -diff;
-                })
-                .forEach(el => container.appendChild(el));
+            items.forEach(el => container.appendChild(el));
 
             // Reset tombol lain ke non-aktif + panah default
             document.querySelectorAll('.sort-btn').forEach(b => {

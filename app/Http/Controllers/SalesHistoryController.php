@@ -3,9 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\FilterDateRangeRequest;
+use App\Models\JubelioInventory;
 use App\Models\Order;
-use App\Models\Product;
-use App\Support\SkuMatch;
 use Carbon\Carbon;
 
 class SalesHistoryController extends Controller
@@ -54,15 +53,18 @@ class SalesHistoryController extends Controller
             ->groupBy('sku_parent', 'sku_variant', 'store_id', 'store_name', 'channel_id', 'channel_name')
             ->get();
 
-        // Parent produk terdaftar (products) untuk pengelompokan berbasis prefix —
-        // konsisten dgn Product Ads (lihat App\Support\SkuMatch). SKU yg tak dimiliki
-        // produk mana pun jatuh ke sku_parent lama (strip "-\d+$").
-        $productParents = Product::pluck('parent_sku')->all();
+        // Parent produk = parent_sku Jubelio (sumber kebenaran item_group).
+        // Peta sku_code → parent_sku dari jubelio_inventory; SKU yg tak ada di
+        // inventory jatuh ke sku_parent bawaan orders.
+        $skuList   = $rows->pluck('sku')->unique()->all();
+        $parentMap = JubelioInventory::whereIn('sku_code', $skuList)
+            ->pluck('parent_sku', 'sku_code')
+            ->all();
 
         // Susun bertingkat: produk (parent_sku) → variasi (sku); qty dipivot per toko
         $products = [];
         foreach ($rows as $r) {
-            $pkey = SkuMatch::owner($r->sku, $productParents) ?? ($r->parent_sku ?: $r->sku);
+            $pkey = $parentMap[$r->sku] ?? ($r->parent_sku ?: $r->sku);
             $sid  = (int) $r->store_id;
             $qty  = (int) $r->qty;
 
@@ -125,24 +127,6 @@ class SalesHistoryController extends Controller
             'products' => count($products),
         ];
 
-        // Kelompokkan produk per prefix huruf (buang angka di belakang):
-        // TRC1, TRC5 → grup "TRC". Kalau tak ada angka di belakang, produk jadi grup sendiri.
-        $groups = [];
-        foreach ($products as $p) {
-            $gkey = preg_replace('/[\s\-_]*\d+.*$/', '', $p['parent_sku']);
-            $gkey = $gkey !== '' ? $gkey : $p['parent_sku'];
-
-            $groups[$gkey] ??= [
-                'group'    => $gkey,
-                'qty'      => 0,
-                'products' => [],
-            ];
-            $groups[$gkey]['qty']        += $p['qty'];
-            $groups[$gkey]['products'][]  = $p;
-        }
-        // Grup diurut by qty desc (produk di dalamnya sudah urut qty desc)
-        uasort($groups, fn ($a, $b) => $b['qty'] <=> $a['qty']);
-
         // Kolom toko = seluruh toko TikTok (stabil di tiap tabel; sel kosong → "-")
         $storeColumns = Order::query()
             ->selectRaw('store_id, MAX(store_name) as store_name')
@@ -164,7 +148,6 @@ class SalesHistoryController extends Controller
 
         return view('sales-history.index', [
             'products'     => $products,
-            'groups'       => $groups,
             'totals'       => $totals,
             'from'         => $from,
             'to'           => $to,
