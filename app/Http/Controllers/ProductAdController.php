@@ -154,17 +154,20 @@ class ProductAdController extends Controller
             return ['stock' => [], 'sales' => [], 'storeSales' => [], 'po' => [], 'hpp' => []];
         }
 
-        $rows = JubelioInventory::whereIn('parent_sku', array_map('strtoupper', $skus))->get();
+        // Cocokkan lewat match_sku (sku_code dinormalisasi strip "-\d+$") — konsisten
+        // dgn orders.sku_parent & products.parent_sku. parent_sku dari grouping
+        // Jubelio (LCP) tak selalu ter-strip utk produk 1-varian suffix "-N".
+        $rows = JubelioInventory::whereIn('match_sku', array_map('strtoupper', $skus))->get();
 
-        // Kelompokkan by parent_sku UPPER dulu (kolom DB selalu uppercase), lalu
+        // Kelompokkan by match_sku UPPER dulu (kolom DB selalu uppercase), lalu
         // dipetakan balik ke casing asli $skus supaya key hasil match dengan pemanggil.
         $stockByUpper = [];
         $hppByUpper   = [];
         $poByUpper    = [];
         foreach ($rows as $row) {
-            $stockByUpper[$row->parent_sku][]            = ['sku' => $row->sku_code, 'qty' => $row->stok];
-            $hppByUpper[$row->parent_sku][$row->sku_code] = $row->hpp;
-            $poByUpper[$row->parent_sku][$row->sku_code]  = $row->po_qty;
+            $stockByUpper[$row->match_sku][]            = ['sku' => $row->sku_code, 'qty' => $row->stok];
+            $hppByUpper[$row->match_sku][$row->sku_code] = $row->hpp;
+            $poByUpper[$row->match_sku][$row->sku_code]  = $row->po_qty;
         }
 
         $stock = [];
