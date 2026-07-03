@@ -151,7 +151,7 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', function () {
-        @if($errors->any())
+        @if($errors->any() || request('create_sku'))
             var myOffcanvas = document.getElementById('offcanvasCreateAd');
             if (myOffcanvas) { new bootstrap.Offcanvas(myOffcanvas).show(); }
         @endif

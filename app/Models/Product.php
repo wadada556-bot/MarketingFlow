@@ -12,6 +12,11 @@ class Product extends Model
     protected $fillable = [
         'category_id',
         'parent_sku',
+        'item_group_id',
+    ];
+
+    protected $casts = [
+        'item_group_id' => 'integer',
     ];
 
     public function getParentSkuAttribute($value): string

@@ -27,6 +27,8 @@ Route::get('product-ads/erp-data', [ProductAdController::class, 'erpData'])
     ->name('product-ads.erp-data');
 Route::get('product-ads/check-duplicate', [ProductAdController::class, 'checkDuplicate'])
     ->name('product-ads.check-duplicate');
+Route::get('product-ads/catalog-search', [ProductAdController::class, 'catalogSearch'])
+    ->name('product-ads.catalog-search');
 Route::get('product-ads/{product_ad}/stock-detail', [ProductAdController::class, 'stockDetail'])
     ->name('product-ads.stock-detail');
 Route::resource('product-ads', ProductAdController::class);
@@ -35,6 +37,8 @@ Route::delete('/products/bulk-destroy', [ProductController::class, 'bulkDestroy'
     ->name('products.bulk-destroy');
 Route::get('/products/suggest', [ProductController::class, 'suggest'])
     ->name('products.suggest');
+Route::get('/products/variants', [ProductController::class, 'variants'])
+    ->name('products.variants');
 Route::resource('products', ProductController::class);
 Route::resource('categories', CategoryController::class);
 Route::resource('stores', StoreController::class);

@@ -6,6 +6,7 @@ use App\Http\Requests\FilterDateRangeRequest;
 use App\Models\JubelioInventory;
 use App\Models\Order;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class SalesHistoryController extends Controller
 {
@@ -24,10 +25,10 @@ class SalesHistoryController extends Controller
         $minDate      = $earliestDate ? Carbon::parse($earliestDate)->toDateString() : $today->toDateString();
         $maxDate      = $today->toDateString();
 
-        // Default: awal tahun berjalan s/d hari ini (lihat seluruh histori tahun ini)
+        // Default: 30 hari terakhir (buka halaman ringan; perlebar via date picker).
         $from = $request->query('date_from')
             ? Carbon::parse($request->query('date_from'))->toDateString()
-            : $today->copy()->startOfYear()->toDateString();
+            : $today->copy()->subDays(29)->toDateString();
         $to = $request->query('date_to')
             ? Carbon::parse($request->query('date_to'))->toDateString()
             : $today->toDateString();
@@ -48,9 +49,10 @@ class SalesHistoryController extends Controller
             ->whereBetween('sales_date', [$from, $to])
             ->where('channel_id', $tiktokId)
             ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
-            ->selectRaw('sku_parent as parent_sku, sku_variant as sku, store_id, store_name, channel_id, channel_name,
+            ->selectRaw('sku_parent as parent_sku, sku_variant as sku, store_id, channel_id,
+                         MAX(store_name) as store_name, MAX(channel_name) as channel_name,
                          SUM(qty) as qty')
-            ->groupBy('sku_parent', 'sku_variant', 'store_id', 'store_name', 'channel_id', 'channel_name')
+            ->groupBy('sku_parent', 'sku_variant', 'store_id', 'channel_id')
             ->get();
 
         // Parent produk = parent_sku Jubelio (sumber kebenaran item_group).
@@ -127,24 +129,23 @@ class SalesHistoryController extends Controller
             'products' => count($products),
         ];
 
-        // Kolom toko = seluruh toko TikTok (stabil di tiap tabel; sel kosong → "-")
-        $storeColumns = Order::query()
-            ->selectRaw('store_id, MAX(store_name) as store_name')
-            ->where('channel_id', $tiktokId)
-            ->when($storeId !== null, fn ($q) => $q->where('store_id', $storeId))
-            ->whereNotNull('store_name')
-            ->groupBy('store_id')
-            ->orderByRaw('MAX(store_name)')
-            ->get();
+        // Daftar toko TikTok jarang berubah → cache 30 mnt supaya tidak memindai
+        // seluruh tabel orders tiap buka halaman (dulu 2 query full-scan).
+        $allStores = Cache::remember('sales_history_tiktok_stores', 1800, fn () =>
+            Order::query()
+                ->selectRaw('store_id, MAX(store_name) as store_name')
+                ->where('channel_id', $tiktokId)
+                ->whereNotNull('store_name')
+                ->groupBy('store_id')
+                ->orderByRaw('MAX(store_name)')
+                ->get()
+        );
 
-        // Opsi filter toko (semua toko TikTok)
-        $storeOptions = Order::query()
-            ->selectRaw('store_id, MAX(store_name) as store_name')
-            ->where('channel_id', $tiktokId)
-            ->whereNotNull('store_name')
-            ->groupBy('store_id')
-            ->orderByRaw('MAX(store_name)')
-            ->get();
+        // Opsi filter = semua toko; kolom tabel = toko terpilih saja bila difilter.
+        $storeOptions = $allStores;
+        $storeColumns = $storeId !== null
+            ? $allStores->where('store_id', $storeId)->values()
+            : $allStores;
 
         return view('sales-history.index', [
             'products'     => $products,

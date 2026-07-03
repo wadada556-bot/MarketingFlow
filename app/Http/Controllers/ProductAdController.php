@@ -15,6 +15,7 @@ use App\Services\DailySalesQueryService;
 use App\Services\ProductAdService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class ProductAdController extends Controller
 {
@@ -192,11 +193,67 @@ class ProductAdController extends Controller
         //
     }
 
+    /**
+     * Pencarian katalog jubelio_inventory untuk dropdown produk di form iklan
+     * (remote search TomSelect). Sumber tunggal SKU → data iklan selalu sinkron
+     * dgn jubelio_inventory.
+     */
+    public function catalogSearch(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $q = trim((string) $request->input('q', ''));
+        if ($q === '') {
+            return response()->json([]);
+        }
+
+        $rows = JubelioInventory::query()
+            ->selectRaw('parent_sku, COUNT(*) as variants, SUM(stok) as stok')
+            ->where('parent_sku', 'like', "%{$q}%")
+            ->groupBy('parent_sku')
+            ->orderByRaw('SUM(stok) DESC')
+            ->limit(20)
+            ->get();
+
+        return response()->json($rows->map(fn ($r) => [
+            'sku'   => $r->parent_sku,
+            'label' => $r->parent_sku . ' — ' . $r->variants . ' varian · stok '
+                     . number_format((int) $r->stok, 0, ',', '.'),
+        ])->all());
+    }
+
+    /**
+     * Anchor products untuk sebuah parent_sku katalog: firstOrCreate + isi
+     * item_group_id (link stabil ke jubelio_inventory) bila parent memetakan ke
+     * TEPAT 1 item_group. Multi-group → null (ditangani manual).
+     */
+    private function resolveAnchor(string $parentSku): Product
+    {
+        $groups  = DB::table('jubelio_inventory')->where('parent_sku', $parentSku)
+            ->distinct()->pluck('item_group_id');
+        $groupId = $groups->count() === 1 ? (int) $groups->first() : null;
+
+        $product = Product::firstOrCreate(
+            ['parent_sku' => $parentSku],
+            ['item_group_id' => $groupId],
+        );
+
+        // Backfill anchor lama yang belum punya item_group_id.
+        if ($groupId !== null && $product->item_group_id === null) {
+            $product->update(['item_group_id' => $groupId]);
+        }
+
+        Cache::forget('product_dropdown_list');
+
+        return $product;
+    }
+
     public function checkDuplicate(Request $request): \Illuminate\Http\JsonResponse
     {
-        $productId = $request->integer('product_id');
+        $parentSku = trim((string) $request->input('parent_sku', ''));
         $storeIds  = $request->array('store_ids');
         $excludeId = $request->integer('exclude_id');
+
+        // Anchor mungkin belum ada (produk baru dari katalog) → tak mungkin duplikat.
+        $productId = $parentSku !== '' ? Product::where('parent_sku', $parentSku)->value('id') : null;
 
         if (!$productId || empty($storeIds)) {
             return response()->json(['duplicates' => []]);
@@ -224,7 +281,12 @@ class ProductAdController extends Controller
 
     public function store(StoreProductAdRequest $request)
     {
-        $this->productAdService->createProductAd($request->validated());
+        $data = $request->validated();
+        // Upsert anchor products dari parent_sku katalog → data selalu sinkron
+        // dgn jubelio_inventory (SKU standar + item_group_id). FK ke products.id.
+        $data['product_id'] = $this->resolveAnchor($data['parent_sku'])->id;
+
+        $this->productAdService->createProductAd($data);
 
         return redirect()
             ->route('product-ads.index')
@@ -276,14 +338,17 @@ class ProductAdController extends Controller
             )
         )->map(fn($a) => (object) $a);
         $stores = Store::select(['id', 'name'])->orderBy('name')->get();
-        $productAd->load('stores');
+        $productAd->load('stores', 'product:id,parent_sku');
 
         return view('product-ads.edit', compact('productAd', 'products', 'stores'));
     }
 
     public function update(UpdateProductAdRequest $request, ProductAd $productAd)
     {
-        $this->productAdService->updateProductAd($productAd, $request->validated());
+        $data = $request->validated();
+        $data['product_id'] = $this->resolveAnchor($data['parent_sku'])->id;
+
+        $this->productAdService->updateProductAd($productAd, $data);
 
         return redirect()
             ->route('product-ads.index')

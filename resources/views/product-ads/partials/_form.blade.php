@@ -1,23 +1,26 @@
 {{-- Hidden: current ad id (for duplicate check exclusion on edit) --}}
 <input type="hidden" id="current_ad_id" value="{{ $productAd->id ?? '' }}">
 
-{{-- ── Product ─────────────────────────────────────────────────── --}}
+{{-- ── Product (remote search dari katalog jubelio_inventory) ────── --}}
+@php
+    $selectedSku = old('parent_sku')
+        ?? ((isset($productAd) && $productAd->product) ? $productAd->product->parent_sku : null)
+        ?? request('create_sku');
+@endphp
 <div class="md-field">
-    <label for="product_id">Produk <span style="color:var(--md-error)">*</span></label>
-    <select class="form-select searchable-select @error('product_id') is-invalid @enderror"
-            id="product_id" name="product_id" required>
-        <option value="" selected disabled>— Pilih produk —</option>
-        @forelse($products as $product)
-            <option value="{{ $product->id }}"
-                    {{ (old('product_id') ?? $productAd->product_id ?? '') == $product->id ? 'selected' : '' }}>
-                {{ $product->parent_sku }}
-            </option>
-        @empty
-            <option value="" disabled>Tidak ada produk tersedia.</option>
-        @endforelse
+    <label for="ad_product_select">Produk <span style="color:var(--md-error)">*</span></label>
+    <select class="form-select @error('parent_sku') is-invalid @enderror"
+            id="ad_product_select" name="parent_sku" required>
+        <option value="" disabled {{ $selectedSku ? '' : 'selected' }}>— Cari SKU produk —</option>
+        @if($selectedSku)
+            <option value="{{ $selectedSku }}" selected>{{ $selectedSku }}</option>
+        @endif
     </select>
-    @error('product_id')
-        <div class="invalid-feedback">{{ $message }}</div>
+    <p style="font-size:11.5px;color:var(--md-on-surface-variant);margin:6px 0 0">
+        Ketik untuk cari SKU dari katalog Jubelio.
+    </p>
+    @error('parent_sku')
+        <div class="invalid-feedback d-block">{{ $message }}</div>
     @enderror
 </div>
 
@@ -275,10 +278,26 @@
                 });
             });
 
-            /* ── Product change → duplicate check ── */
-            var productSelect = document.getElementById('product_id');
-            if (productSelect) {
-                productSelect.addEventListener('change', scheduleDuplicateCheck);
+            /* ── Product picker: remote search dari katalog jubelio ── */
+            var catalogUrl = @json(route('product-ads.catalog-search'));
+            var pselEl = document.getElementById('ad_product_select');
+            if (pselEl && window.TomSelect) {
+                new TomSelect(pselEl, {
+                    valueField: 'sku',
+                    labelField: 'label',
+                    searchField: ['label', 'sku'],
+                    create: false,
+                    maxOptions: 30,
+                    loadThrottle: 300,
+                    load: function (query, callback) {
+                        if (!query.length) return callback();
+                        fetch(catalogUrl + '?q=' + encodeURIComponent(query))
+                            .then(function (r) { return r.json(); })
+                            .then(callback)
+                            .catch(function () { callback(); });
+                    },
+                    onChange: function () { scheduleDuplicateCheck(); },
+                });
             }
         });
 
@@ -310,8 +329,8 @@
         }
 
         function doDuplicateCheck() {
-            var productSelect = document.getElementById('product_id');
-            var pid = productSelect ? productSelect.value : '';
+            var productSelect = document.getElementById('ad_product_select');
+            var sku = productSelect ? productSelect.value : '';
             var storeIds = [];
             document.querySelectorAll('#storeChipsContainer input[type=checkbox]:checked').forEach(function (cb) {
                 storeIds.push(cb.value);
@@ -320,13 +339,13 @@
             var excludeId = excludeIdEl ? excludeIdEl.value : '';
             var warn = document.getElementById('duplicate-warning');
 
-            if (!pid || storeIds.length === 0) {
+            if (!sku || storeIds.length === 0) {
                 warn.style.display = 'none';
                 return;
             }
 
             var params = new URLSearchParams();
-            params.append('product_id', pid);
+            params.append('parent_sku', sku);
             storeIds.forEach(function (id) { params.append('store_ids[]', id); });
             if (excludeId) params.append('exclude_id', excludeId);
 

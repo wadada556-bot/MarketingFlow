@@ -14,7 +14,7 @@ class StoreProductAdRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'product_id'        => ['required', 'integer', 'exists:products,id'],
+            'parent_sku'        => ['required', 'string', 'exists:jubelio_inventory,parent_sku'],
             'status'            => ['required', 'string', 'in:active,stopped,completed'],
             'stores'            => ['required', 'array', 'min:1', 'max:7'],
             'stores.*'          => ['required', 'integer', 'exists:stores,id'],
