@@ -520,7 +520,23 @@ document.getElementById('storeFilter').addEventListener('change', function () {
     render();
 })();
 </script>
-<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script>
+    // Lazy-load SheetJS (≈1 MB) hanya saat pertama kali klik Export — bukan tiap
+    // buka halaman. Versi di-pin (hindari redirect "latest"). Di-cache via promise.
+    let __xlsxPromise = null;
+    function ensureXLSX() {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (__xlsxPromise) return __xlsxPromise;
+        __xlsxPromise = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+            s.onload = () => resolve(window.XLSX);
+            s.onerror = () => { __xlsxPromise = null; reject(new Error('Gagal memuat modul export')); };
+            document.head.appendChild(s);
+        });
+        return __xlsxPromise;
+    }
+</script>
 <script>
     // Global product search
     document.getElementById('productSearch')?.addEventListener('input', function (e) {
@@ -578,17 +594,26 @@ document.getElementById('storeFilter').addEventListener('change', function () {
         });
     });
 
-    // Excel export per product
+    // Excel export per product (SheetJS dimuat lazy di klik pertama)
     document.addEventListener('click', function (e) {
-        if (!e.target.closest('.export-csv-btn')) return;
+        const btn = e.target.closest('.export-csv-btn');
+        if (!btn) return;
         const item = e.target.closest('.sales-product-item');
         const parentSku = item.dataset.parentSku || 'export';
         const rows = JSON.parse(item.dataset.export || '[]');
         const headers = @json(array_merge(['SKU Variation'], $storeColumns->map(fn ($sc) => $cleanStore($sc->store_name))->all(), ['Total']));
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Sales');
-        XLSX.writeFile(wb, parentSku + '_sales.xlsx');
+
+        btn.disabled = true;
+        ensureXLSX().then((XLSX) => {
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+            XLSX.writeFile(wb, parentSku + '_sales.xlsx');
+        }).catch((err) => {
+            alert(err.message || 'Gagal export.');
+        }).finally(() => {
+            btn.disabled = false;
+        });
     });
 </script>
 @endpush
