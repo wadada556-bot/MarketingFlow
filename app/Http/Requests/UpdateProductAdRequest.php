@@ -15,6 +15,7 @@ class UpdateProductAdRequest extends FormRequest
     {
         return [
             'parent_sku'        => ['required', 'string', 'exists:jubelio_inventory,parent_sku'],
+            'category_id'       => ['nullable', 'integer', 'exists:categories,id'],
             'status'            => ['required', 'string', 'in:active,stopped,completed'],
             'stores'            => ['required', 'array', 'min:1', 'max:7'],
             'stores.*'          => ['required', 'integer', 'exists:stores,id'],
