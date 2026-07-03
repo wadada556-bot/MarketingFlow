@@ -19,69 +19,62 @@
     <table class="md-table table-hover align-middle">
         <thead>
             <tr>
-                <th style="width:44px" class="text-center">
-                    <input type="checkbox" class="form-check-input" id="select_all"
-                           style="width:16px;height:16px;cursor:pointer;border-color:var(--md-outline)">
-                </th>
-                <th>SKU / Produk</th>
-                <th>Kategori</th>
+                <th style="width:44px"></th>
+                <th>SKU Induk</th>
+                <th class="text-center" style="width:100px">Varian</th>
+                <th class="text-end" style="width:100px">Total Stok</th>
+                <th class="text-end" style="width:100px">Terjual 30h</th>
                 <th>Harga Normal</th>
                 <th>Harga Promo</th>
-                <th class="text-center" style="width:110px">Tindakan</th>
+                <th class="text-center" style="width:80px">Aksi</th>
             </tr>
         </thead>
         <tbody>
-            @forelse ($products as $product)
-                <tr>
-                    <td class="text-center" style="vertical-align:middle">
-                        <input type="checkbox" name="ids[]" value="{{ $product->id }}"
-                               class="form-check-input sub_chk"
-                               style="width:16px;height:16px;cursor:pointer;border-color:var(--md-outline)">
+            @forelse ($catalog as $row)
+                @php $p = ($prices ?? collect())->get($row->parent_sku); @endphp
+                <tr class="js-catalog-row" data-parent="{{ $row->parent_sku }}">
+                    <td class="text-center">
+                        <button type="button" class="btn-md-icon js-expand"
+                                title="Lihat varian" aria-expanded="false"
+                                style="transition:transform .15s ease">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
                     </td>
                     <td>
                         <p class="mb-0 fw-medium" style="font-size:14px;color:var(--md-on-surface)">
-                            {{ $product->parent_sku ?? 'N/A' }}
+                            {{ $row->parent_sku }}
                         </p>
                     </td>
-                    <td>
-                        <span class="md-chip secondary">{{ $product->category->name ?? 'Uncategorized' }}</span>
+                    <td class="text-center">
+                        <span class="md-chip secondary">{{ number_format($row->variant_count, 0, ',', '.') }}</span>
                     </td>
-                    @php $p = ($prices ?? collect())->get(strtoupper($product->parent_sku)); @endphp
+                    <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">
+                        {{ number_format((int) $row->total_stok, 0, ',', '.') }}
+                    </td>
+                    <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">
+                        {{ number_format((int) (($sales ?? collect())->get($row->parent_sku) ?? 0), 0, ',', '.') }}
+                    </td>
                     <td style="font-size:13.5px;color:var(--md-on-surface);white-space:nowrap">
                         {!! $fmtRange($p->retail_min ?? null, $p->retail_max ?? null) !!}
                     </td>
                     <td style="font-size:13.5px;color:var(--md-on-surface);white-space:nowrap">
                         {!! $fmtRange($p->promo_min ?? null, $p->promo_max ?? null) !!}
                     </td>
-                    <td>
-                        <div class="d-flex justify-content-center align-items-center gap-0">
-                            <button type="button"
-                                    class="btn-md-icon warning"
-                                    title="Edit Produk"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#editProductModal"
-                                    data-action="{{ route('products.update', $product->id) }}"
-                                    data-sku="{{ $product->parent_sku }}"
-                                    data-category="{{ $product->category_id }}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button type="button"
-                                    class="btn-md-icon error"
-                                    title="Hapus Produk"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#deleteConfirmModal"
-                                    data-action="{{ route('products.destroy', $product->id) }}">
-                                <i class="bi bi-trash3"></i>
-                            </button>
-                        </div>
+                    <td class="text-center">
+                        <a href="{{ route('product-ads.index', ['create_sku' => $row->parent_sku]) }}"
+                           class="btn-md-icon" title="Iklankan produk ini">
+                            <i class="bi bi-megaphone"></i>
+                        </a>
                     </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" style="padding:48px 24px;text-align:center">
+                    <td colspan="8" style="padding:48px 24px;text-align:center">
                         <i class="bi bi-inbox d-block mb-3" style="font-size:2.5rem;color:var(--md-outline)"></i>
                         <p class="mb-1" style="font-size:15px;font-weight:500;color:var(--md-on-surface)">Tidak Ada Produk</p>
-                        <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">Tambahkan produk baru untuk mulai.</p>
+                        <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">
+                            Katalog Jubelio kosong atau tidak cocok dengan pencarian.
+                        </p>
                     </td>
                 </tr>
             @endforelse

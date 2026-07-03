@@ -3,161 +3,97 @@
 @section('title', 'Products')
 
 @push('styles')
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
     <style>
-        /* Override TomSelect to match MD3 */
-        .ts-wrapper .ts-control {
-            border-radius: var(--md-shape-xs) !important;
-            border: 1px solid var(--md-outline) !important;
-            background: var(--md-surface) !important;
-            box-shadow: none !important;
-            font-size: 13.5px !important;
-            padding: 7px 10px !important;
-        }
-        .ts-wrapper.focus .ts-control {
-            border-color: var(--md-primary) !important;
-            border-width: 2px !important;
-            box-shadow: none !important;
-        }
-        .ts-dropdown {
-            border-radius: var(--md-shape-sm) !important;
-            border: 1px solid var(--md-outline-variant) !important;
-            box-shadow: var(--md-elev-2) !important;
-        }
         .pagination-wrapper nav > div:first-child { display: none !important; }
         .pagination-wrapper nav { margin-bottom: 0 !important; }
+        .js-expand { transition: transform .15s ease; }
     </style>
 @endpush
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
-    <script src="{{ asset('js/product-ads.js') }}?v={{ filemtime(public_path('js/product-ads.js')) }}"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            @if($errors->any())
-                var myOffcanvas = document.getElementById('offcanvasCreateProduct');
-                if(myOffcanvas) { new bootstrap.Offcanvas(myOffcanvas).show(); }
-            @endif
+<script>
+(function () {
+    const VARIANTS_URL = @json(route('products.variants'));
+    const STORE_ID     = @json($storeId);
 
-            const selectAll      = document.getElementById('select_all');
-            const checkboxes     = document.querySelectorAll('.sub_chk');
-            const bulkDeleteBtn  = document.getElementById('btn_bulk_delete');
-            const selectCount    = document.getElementById('select_count');
+    const num    = (v) => Number(v || 0).toLocaleString('id-ID');
+    const rupiah = (v) => (v === null || v === undefined)
+        ? '<span style="color:var(--md-on-surface-variant)">-</span>'
+        : 'Rp' + Number(v).toLocaleString('id-ID');
 
-            if (selectAll) {
-                selectAll.addEventListener('change', function () {
-                    checkboxes.forEach(cb => cb.checked = this.checked);
-                    toggleBulkDeleteButton();
-                });
-            }
-            checkboxes.forEach(cb => {
-                cb.addEventListener('change', function () {
-                    if (!this.checked) selectAll.checked = false;
-                    else if (document.querySelectorAll('.sub_chk:checked').length === checkboxes.length)
-                        selectAll.checked = true;
-                    toggleBulkDeleteButton();
-                });
-            });
-            function toggleBulkDeleteButton() {
-                const n = document.querySelectorAll('.sub_chk:checked').length;
-                bulkDeleteBtn.classList.toggle('d-none', n === 0);
-                selectCount.textContent = n;
-            }
+    function salesSummary(s) {
+        s = s || {};
+        const item = (lbl, v) => `<span>${lbl}: <strong style="color:var(--md-on-surface)">${num(v)}</strong></span>`;
+        return `<div style="display:flex;gap:18px;flex-wrap:wrap;padding:6px 8px 10px 44px;font-size:12.5px;color:var(--md-on-surface-variant)">
+            <span style="color:var(--md-on-surface-variant)">Terjual —</span>
+            ${item('Hari ini', s.today)} ${item('Kemarin', s.yesterday)}
+            ${item('7h', s['7d'])} ${item('30h', s['30d'])} ${item('90h', s['90d'])}
+        </div>`;
+    }
 
-            const confirmBulkDeleteBtn = document.getElementById('executeBulkDelete');
-            if (confirmBulkDeleteBtn) {
-                confirmBulkDeleteBtn.addEventListener('click', function () {
-                    document.getElementById('formBulkDelete').submit();
-                });
-            }
+    function buildDetail(d) {
+        const variants = d.variants || [];
+        const summary  = salesSummary(d.sales_by_period);
+        if (!variants.length) {
+            return summary + '<div style="padding:0 44px 16px;color:var(--md-on-surface-variant);font-size:13px">Tidak ada varian.</div>';
+        }
+        const rows = variants.map(v => `
+            <tr>
+                <td style="font-size:13px">${v.sku}</td>
+                <td style="font-size:13px;color:var(--md-on-surface-variant)">${v.label ?? '-'}</td>
+                <td class="text-end" style="font-size:13px">${num(v.stok)}</td>
+                <td class="text-end" style="font-size:13px">${num(v.po)}</td>
+                <td class="text-end" style="font-size:13px">${num(v.sold30)}</td>
+                <td class="text-end" style="font-size:13px">${rupiah(v.hpp)}</td>
+                <td class="text-end" style="font-size:13px">${rupiah(v.retail)}</td>
+                <td class="text-end" style="font-size:13px">${rupiah(v.promo)}</td>
+            </tr>`).join('');
+        return summary + `<div style="padding:0 8px 8px 44px">
+            <table class="table align-middle mb-0">
+              <thead><tr style="color:var(--md-on-surface-variant);font-size:12px">
+                <th>SKU Varian</th><th>Variasi</th>
+                <th class="text-end">Stok</th><th class="text-end">PO</th><th class="text-end">Terjual 30h</th>
+                <th class="text-end">HPP</th><th class="text-end">Harga Normal</th><th class="text-end">Harga Promo</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table></div>`;
+    }
 
-            // ── Autocomplete ──────────────────────────────────────────────
-            const searchInput  = document.getElementById('productSearch');
-            const suggestionEl = document.getElementById('searchSuggestions');
-            const suggestUrl   = '{{ route('products.suggest') }}';
-            let debounceTimer  = null;
-            let activeIndex    = -1;
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.js-expand');
+        if (!btn) return;
+        const row  = btn.closest('.js-catalog-row');
+        const next = row.nextElementSibling;
 
-            function renderSuggestions(items) {
-                suggestionEl.innerHTML = '';
-                activeIndex = -1;
+        // Toggle bila detail sudah ada
+        if (next && next.classList.contains('js-detail-row')) {
+            const open = next.style.display !== 'none';
+            next.style.display = open ? 'none' : '';
+            btn.setAttribute('aria-expanded', String(!open));
+            btn.style.transform = open ? '' : 'rotate(90deg)';
+            return;
+        }
 
-                if (!items.length) { suggestionEl.style.display = 'none'; return; }
+        // Buat baris detail + fetch lazy
+        const tr = document.createElement('tr');
+        tr.className = 'js-detail-row';
+        const td = document.createElement('td');
+        td.colSpan = 8;
+        td.style.background = 'var(--md-surface-container-low)';
+        td.innerHTML = '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Memuat varian…</div>';
+        tr.appendChild(td);
+        row.after(tr);
+        btn.setAttribute('aria-expanded', 'true');
+        btn.style.transform = 'rotate(90deg)';
 
-                items.forEach((item, i) => {
-                    const li = document.createElement('li');
-                    li.dataset.index = i;
-                    li.style.cssText = 'padding:8px 14px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px;color:var(--md-on-surface)';
-                    li.innerHTML = `<span>${item.sku}</span>
-                        <span style="font-size:12px;color:var(--md-on-surface-variant);flex-shrink:0">${item.category}</span>`;
-
-                    li.addEventListener('mouseenter', () => setActive(i));
-                    li.addEventListener('mouseleave', () => clearActive());
-                    li.addEventListener('mousedown', (e) => {
-                        e.preventDefault();
-                        searchInput.value = item.sku;
-                        document.getElementById('searchForm').submit();
-                    });
-
-                    suggestionEl.appendChild(li);
-                });
-
-                suggestionEl.style.display = 'block';
-            }
-
-            function setActive(index) {
-                const items = suggestionEl.querySelectorAll('li');
-                items.forEach(el => el.style.background = '');
-                activeIndex = index;
-                if (items[index]) items[index].style.background = 'var(--md-surface-container-low)';
-            }
-
-            function clearActive() {
-                const items = suggestionEl.querySelectorAll('li');
-                items.forEach(el => el.style.background = '');
-                activeIndex = -1;
-            }
-
-            if (searchInput) {
-                searchInput.addEventListener('input', function () {
-                    clearTimeout(debounceTimer);
-                    const q = this.value.trim();
-                    if (!q) { suggestionEl.style.display = 'none'; return; }
-
-                    debounceTimer = setTimeout(() => {
-                        fetch(`${suggestUrl}?q=${encodeURIComponent(q)}`)
-                            .then(r => r.json())
-                            .then(renderSuggestions);
-                    }, 250);
-                });
-
-                searchInput.addEventListener('keydown', function (e) {
-                    const items = suggestionEl.querySelectorAll('li');
-                    if (!items.length || suggestionEl.style.display === 'none') return;
-
-                    if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        setActive(Math.min(activeIndex + 1, items.length - 1));
-                    } else if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        setActive(Math.max(activeIndex - 1, 0));
-                    } else if (e.key === 'Enter' && activeIndex >= 0) {
-                        e.preventDefault();
-                        searchInput.value = items[activeIndex].querySelector('span').textContent;
-                        document.getElementById('searchForm').submit();
-                    } else if (e.key === 'Escape') {
-                        suggestionEl.style.display = 'none';
-                    }
-                });
-
-                document.addEventListener('click', function (e) {
-                    if (!searchInput.contains(e.target) && !suggestionEl.contains(e.target)) {
-                        suggestionEl.style.display = 'none';
-                    }
-                });
-            }
-        });
-    </script>
+        const url = `${VARIANTS_URL}?parent=${encodeURIComponent(row.dataset.parent)}&store_id=${STORE_ID ?? ''}`;
+        fetch(url)
+            .then(r => r.json())
+            .then(d => { td.innerHTML = buildDetail(d); })
+            .catch(() => { td.innerHTML = '<div style="padding:16px 44px;color:var(--md-error);font-size:13px">Gagal memuat varian.</div>'; });
+    });
+})();
+</script>
 @endpush
 
 @section('content')
@@ -165,37 +101,22 @@
     <div class="md-page-header">
         <div>
             <h1>Products</h1>
-            <p class="subtitle">Kelola data produk dan SKU</p>
-        </div>
-        <div class="d-flex gap-2 align-items-center">
-            <button type="button" id="btn_bulk_delete"
-                    class="btn-md-error-tonal d-none"
-                    data-bs-toggle="modal" data-bs-target="#bulkDeleteConfirmModal">
-                <i class="bi bi-trash3"></i>
-                Hapus Terpilih (<span id="select_count">0</span>)
-            </button>
-            <button class="btn-md-filled" type="button"
-                    data-bs-toggle="offcanvas"
-                    data-bs-target="#offcanvasCreateProduct"
-                    aria-controls="offcanvasCreateProduct">
-                <i class="bi bi-plus-lg"></i> Tambah Produk
-            </button>
+            <p class="subtitle">Katalog produk dari Jubelio — stok &amp; harga per toko</p>
         </div>
     </div>
 
     @include('components.alert')
 
-    <form method="GET" action="{{ route('products.index') }}" class="mb-3 d-flex flex-wrap align-items-center gap-2" id="searchForm" autocomplete="off">
+    <form method="GET" action="{{ route('products.index') }}" class="mb-3 d-flex flex-wrap align-items-center gap-2" autocomplete="off">
         <div style="position:relative;max-width:360px;flex:1 1 260px">
             <div class="input-group">
                 <span class="input-group-text"
                       style="background:var(--md-surface);border-color:var(--md-outline);border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs)">
                     <i class="bi bi-search" style="color:var(--md-on-surface-variant);font-size:14px"></i>
                 </span>
-                <input type="text" name="search" id="productSearch"
-                       value="{{ $search ?? '' }}"
+                <input type="text" name="search" value="{{ $search ?? '' }}"
                        class="form-control"
-                       placeholder="Cari SKU atau kategori…"
+                       placeholder="Cari SKU induk…"
                        style="border-color:var(--md-outline);font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
                 @if(!empty($search))
                     <a href="{{ route('products.index', ['store_id' => $storeId]) }}"
@@ -206,17 +127,6 @@
                     </a>
                 @endif
             </div>
-
-            {{-- Autocomplete dropdown --}}
-            <ul id="searchSuggestions"
-                style="display:none;position:absolute;top:100%;left:0;right:0;z-index:1055;
-                       list-style:none;margin:4px 0 0;padding:4px 0;
-                       background:var(--md-surface);
-                       border:1px solid var(--md-outline-variant);
-                       border-radius:var(--md-shape-sm);
-                       box-shadow:var(--md-elev-2);
-                       max-height:260px;overflow-y:auto">
-            </ul>
         </div>
 
         {{-- Pemilih toko: harga jual ditampilkan per toko --}}
@@ -235,43 +145,23 @@
         @endif
     </form>
 
-    @if($products->isEmpty())
-        <div class="md-card text-center py-5 px-4" style="border-style:dashed">
-            <i class="bi bi-inbox d-block mb-3" style="font-size:2.8rem;color:var(--md-outline)"></i>
-            <p class="mb-1" style="font-size:16px;font-weight:500;color:var(--md-on-surface)">Tidak Ada Data</p>
-            <p class="mb-0" style="font-size:14px;color:var(--md-on-surface-variant)">
-                @if(!empty($search))
-                    Tidak ada produk yang cocok dengan "<strong>{{ $search }}</strong>".
-                @else
-                    Coba sesuaikan filter atau tambahkan produk baru.
-                @endif
-            </p>
-        </div>
-    @else
-        <form id="formBulkDelete" action="{{ route('products.bulk-destroy') }}" method="POST">
-            @csrf
-            @method('DELETE')
-            @include('products.partials.table', ['products' => $products, 'prices' => $prices])
-        </form>
+    @include('products.partials.table', ['catalog' => $catalog, 'prices' => $prices])
 
+    @if($catalog->isNotEmpty())
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4 gap-2">
             <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">
                 Menampilkan
-                <strong style="color:var(--md-on-surface)">{{ $products->firstItem() ?? 0 }}</strong>
+                <strong style="color:var(--md-on-surface)">{{ $catalog->firstItem() ?? 0 }}</strong>
                 –
-                <strong style="color:var(--md-on-surface)">{{ $products->lastItem() ?? 0 }}</strong>
+                <strong style="color:var(--md-on-surface)">{{ $catalog->lastItem() ?? 0 }}</strong>
                 dari
-                <strong style="color:var(--md-on-surface)">{{ $products->total() }}</strong>
-                data
+                <strong style="color:var(--md-on-surface)">{{ $catalog->total() }}</strong>
+                produk induk
             </p>
             <div class="pagination-wrapper">
-                {{ $products->withQueryString()->links() }}
+                {{ $catalog->withQueryString()->links() }}
             </div>
         </div>
     @endif
-
-    @include('products.partials.create-offcanvas')
-    @include('products.partials._edit-product-modal')
-    @include('products.partials.delete-modal')
 
 @endsection
