@@ -131,7 +131,9 @@ class SalesHistoryController extends Controller
 
         // Daftar toko TikTok jarang berubah → cache 30 mnt supaya tidak memindai
         // seluruh tabel orders tiap buka halaman (dulu 2 query full-scan).
-        $allStores = Cache::remember('sales_history_tiktok_stores', 1800, fn () =>
+        // Cache ARRAY PRIMITIF murni (bukan Collection/Model) — objek tidak
+        // ter-unserialize bersih dari file cache. Objek dibangun ulang di memori.
+        $storeRaw = Cache::remember('sales_history_tiktok_stores', 1800, fn () =>
             Order::query()
                 ->selectRaw('store_id, MAX(store_name) as store_name')
                 ->where('channel_id', $tiktokId)
@@ -139,7 +141,10 @@ class SalesHistoryController extends Controller
                 ->groupBy('store_id')
                 ->orderByRaw('MAX(store_name)')
                 ->get()
+                ->map(fn ($r) => ['store_id' => (int) $r->store_id, 'store_name' => $r->store_name])
+                ->all()
         );
+        $allStores = collect($storeRaw)->map(fn ($a) => (object) $a);
 
         // Opsi filter = semua toko; kolom tabel = toko terpilih saja bila difilter.
         $storeOptions = $allStores;
