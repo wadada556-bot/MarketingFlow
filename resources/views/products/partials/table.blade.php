@@ -1,3 +1,20 @@
+@php
+    // Format rentang harga: satu nilai bila min==max, "Rp.. – Rp.." bila beda, "-" bila kosong.
+    $fmtRange = function ($min, $max) {
+        if (is_null($min) && is_null($max)) {
+            return '<span style="color:var(--md-on-surface-variant)">-</span>';
+        }
+        $min = $min ?? $max;
+        $max = $max ?? $min;
+        if ((int) $min === (int) $max) {
+            return 'Rp' . number_format((int) $min, 0, ',', '.');
+        }
+        return 'Rp' . number_format((int) $min, 0, ',', '.')
+             . ' <span style="color:var(--md-on-surface-variant)">–</span> Rp'
+             . number_format((int) $max, 0, ',', '.');
+    };
+@endphp
+
 <div class="md-table-wrap">
     <table class="md-table table-hover align-middle">
         <thead>
@@ -8,6 +25,8 @@
                 </th>
                 <th>SKU / Produk</th>
                 <th>Kategori</th>
+                <th>Harga Normal</th>
+                <th>Harga Promo</th>
                 <th class="text-center" style="width:110px">Tindakan</th>
             </tr>
         </thead>
@@ -26,6 +45,13 @@
                     </td>
                     <td>
                         <span class="md-chip secondary">{{ $product->category->name ?? 'Uncategorized' }}</span>
+                    </td>
+                    @php $p = ($prices ?? collect())->get(strtoupper($product->parent_sku)); @endphp
+                    <td style="font-size:13.5px;color:var(--md-on-surface);white-space:nowrap">
+                        {!! $fmtRange($p->retail_min ?? null, $p->retail_max ?? null) !!}
+                    </td>
+                    <td style="font-size:13.5px;color:var(--md-on-surface);white-space:nowrap">
+                        {!! $fmtRange($p->promo_min ?? null, $p->promo_max ?? null) !!}
                     </td>
                     <td>
                         <div class="d-flex justify-content-center align-items-center gap-0">
@@ -52,7 +78,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="4" style="padding:48px 24px;text-align:center">
+                    <td colspan="6" style="padding:48px 24px;text-align:center">
                         <i class="bi bi-inbox d-block mb-3" style="font-size:2.5rem;color:var(--md-outline)"></i>
                         <p class="mb-1" style="font-size:15px;font-weight:500;color:var(--md-on-surface)">Tidak Ada Produk</p>
                         <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">Tambahkan produk baru untuk mulai.</p>
