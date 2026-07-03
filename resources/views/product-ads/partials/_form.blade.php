@@ -201,7 +201,7 @@
 </div>
 
 @push('styles')
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
     <style>
         .flatpickr-calendar { transform: scale(.92); transform-origin: top left; }
         .flatpickr-calendar.rightMost { transform-origin: top right; }
@@ -261,7 +261,7 @@
 @endpush
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
     <script>
     (function () {
         var fp;
