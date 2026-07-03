@@ -7,6 +7,8 @@ use App\Http\Requests\UpdateProductRequest;
 use App\Http\Requests\BulkDeleteProductRequest;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Store;
+use App\Models\StoreSkuPrice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
@@ -40,6 +42,10 @@ class ProductController extends Controller
         $search = $request->input('search');
         $categories = Category::select('id', 'name')->get();
 
+        // Toko untuk pemilih harga (harga jual berbeda per toko)
+        $stores  = Store::select('id', 'name')->orderBy('name')->get();
+        $storeId = $request->integer('store_id') ?: optional($stores->first())->id;
+
         $products = Product::select('id', 'parent_sku', 'category_id')
             ->with('category:id,name')
             ->when($search, function ($query, $search) {
@@ -49,7 +55,27 @@ class ProductController extends Controller
             ->latest('id')
             ->paginate(10);
 
-        return view('products.index', compact('products', 'categories', 'search'));
+        // Rentang harga (min–max) per induk untuk toko terpilih — hanya produk di halaman ini.
+        // NULLIF(...,0) → abaikan nilai 0 (promotion_price 0 = tidak ada campaign).
+        $prices = collect();
+        if ($storeId) {
+            $skus = $products->pluck('parent_sku')->map(fn ($s) => strtoupper($s))->unique()->all();
+            if (! empty($skus)) {
+                $prices = StoreSkuPrice::query()
+                    ->where('store_id', $storeId)
+                    ->whereIn('match_sku', $skus)
+                    ->selectRaw('match_sku,
+                        MIN(NULLIF(retail_price, 0))    as retail_min,
+                        MAX(NULLIF(retail_price, 0))    as retail_max,
+                        MIN(NULLIF(promotion_price, 0)) as promo_min,
+                        MAX(NULLIF(promotion_price, 0)) as promo_max')
+                    ->groupBy('match_sku')
+                    ->get()
+                    ->keyBy('match_sku');
+            }
+        }
+
+        return view('products.index', compact('products', 'categories', 'search', 'stores', 'storeId', 'prices'));
     }
 
     public function create()

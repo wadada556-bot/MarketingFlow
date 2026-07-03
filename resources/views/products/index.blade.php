@@ -185,8 +185,8 @@
 
     @include('components.alert')
 
-    <form method="GET" action="{{ route('products.index') }}" class="mb-3" id="searchForm" autocomplete="off">
-        <div style="position:relative;max-width:360px">
+    <form method="GET" action="{{ route('products.index') }}" class="mb-3 d-flex flex-wrap align-items-center gap-2" id="searchForm" autocomplete="off">
+        <div style="position:relative;max-width:360px;flex:1 1 260px">
             <div class="input-group">
                 <span class="input-group-text"
                       style="background:var(--md-surface);border-color:var(--md-outline);border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs)">
@@ -198,7 +198,7 @@
                        placeholder="Cari SKU atau kategori…"
                        style="border-color:var(--md-outline);font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
                 @if(!empty($search))
-                    <a href="{{ route('products.index') }}"
+                    <a href="{{ route('products.index', ['store_id' => $storeId]) }}"
                        class="input-group-text"
                        style="background:var(--md-surface);border-color:var(--md-outline);border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;color:var(--md-on-surface-variant);text-decoration:none"
                        title="Hapus pencarian">
@@ -218,6 +218,21 @@
                        max-height:260px;overflow-y:auto">
             </ul>
         </div>
+
+        {{-- Pemilih toko: harga jual ditampilkan per toko --}}
+        @if($stores->isNotEmpty())
+            <div style="min-width:200px">
+                <select name="store_id" class="form-select" onchange="this.form.submit()"
+                        title="Pilih toko untuk melihat harga"
+                        style="border-color:var(--md-outline);font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
+                    @foreach($stores as $store)
+                        <option value="{{ $store->id }}" @selected($storeId == $store->id)>
+                            {{ ucwords($store->name) }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+        @endif
     </form>
 
     @if($products->isEmpty())
@@ -236,7 +251,7 @@
         <form id="formBulkDelete" action="{{ route('products.bulk-destroy') }}" method="POST">
             @csrf
             @method('DELETE')
-            @include('products.partials.table', ['products' => $products])
+            @include('products.partials.table', ['products' => $products, 'prices' => $prices])
         </form>
 
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4 gap-2">
