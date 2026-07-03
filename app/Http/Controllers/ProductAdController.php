@@ -284,7 +284,11 @@ class ProductAdController extends Controller
         $data = $request->validated();
         // Upsert anchor products dari parent_sku katalog → data selalu sinkron
         // dgn jubelio_inventory (SKU standar + item_group_id). FK ke products.id.
-        $data['product_id'] = $this->resolveAnchor($data['parent_sku'])->id;
+        $product = $this->resolveAnchor($data['parent_sku']);
+        if (array_key_exists('category_id', $data)) {
+            $product->update(['category_id' => $data['category_id'] ?: null]);
+        }
+        $data['product_id'] = $product->id;
 
         $this->productAdService->createProductAd($data);
 
@@ -338,15 +342,20 @@ class ProductAdController extends Controller
             )
         )->map(fn($a) => (object) $a);
         $stores = Store::select(['id', 'name'])->orderBy('name')->get();
-        $productAd->load('stores', 'product:id,parent_sku');
+        $categories = Category::select('id', 'name')->orderBy('name')->get();
+        $productAd->load('stores', 'product:id,parent_sku,category_id');
 
-        return view('product-ads.edit', compact('productAd', 'products', 'stores'));
+        return view('product-ads.edit', compact('productAd', 'products', 'stores', 'categories'));
     }
 
     public function update(UpdateProductAdRequest $request, ProductAd $productAd)
     {
         $data = $request->validated();
-        $data['product_id'] = $this->resolveAnchor($data['parent_sku'])->id;
+        $product = $this->resolveAnchor($data['parent_sku']);
+        if (array_key_exists('category_id', $data)) {
+            $product->update(['category_id' => $data['category_id'] ?: null]);
+        }
+        $data['product_id'] = $product->id;
 
         $this->productAdService->updateProductAd($productAd, $data);
 
