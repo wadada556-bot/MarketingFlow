@@ -118,6 +118,34 @@
     .sh-medal-2 { background: #C0C0C0; color: #4d4d4d; }
     .sh-medal-3 { background: #CD7F32; color: #4a2e12; }
 
+    /* ── Item produk (class, bukan style inline berulang: hemat ukuran HTML) ── */
+    .sh-item {
+        border: 1px solid var(--md-outline-variant);
+        border-radius: var(--md-shape-lg);
+        margin-bottom: 12px;
+        overflow: hidden;
+        background: var(--md-surface-container-lowest);
+    }
+    .sh-acc-btn { background: var(--md-surface-container-lowest) !important; box-shadow: none !important; }
+    .sh-head-row { display: flex; flex-wrap: wrap; align-items: center; width: 100%; gap: 16px; padding-right: 16px; }
+    .sh-head-main { min-width: 0; flex: 1; }
+    .sh-head-sku { font-weight: 700; color: var(--md-on-surface); font-size: 19px; letter-spacing: .1px; }
+    .sh-head-right { text-align: right; }
+    .sh-head-lbl { font-size: 11px; color: var(--md-on-surface-variant); font-weight: 500; }
+    .sh-head-qty { font-size: 18px; font-weight: 700; color: var(--md-primary); }
+    .sh-body { padding: 16px; background: var(--md-surface-container-low); }
+    .sh-loading { padding: 8px 4px; color: var(--md-on-surface-variant); font-size: 13px; }
+
+    /* ── Tabel varian (dibangun via JS saat accordion dibuka) ── */
+    .sh-vtable th.sh-th { background: var(--md-secondary-container); color: var(--md-on-secondary-container); }
+    .sh-th-r, .sh-td-r { text-align: right; white-space: nowrap; }
+    .sh-td { border-bottom: 1px solid var(--md-outline-variant); }
+    .sh-td-sku { font-weight: 600; border-right: 1px solid var(--md-outline-variant); border-bottom: 1px solid var(--md-outline-variant); white-space: nowrap; }
+    .sh-td-total { font-weight: 600; border-left: 1px solid var(--md-outline-variant); }
+    .sh-muted { color: var(--md-on-surface-variant); }
+    .sh-tf { padding: 14px 16px; font-weight: 700; background: var(--md-surface-container); border-top: 2px solid var(--md-outline-variant); color: var(--md-on-surface); }
+    .sh-tf-total { border-left: 1px solid var(--md-outline-variant); }
+
     @media (max-width: 768px) {
         .sh-toolbar-actions { margin-left: 0; width: 100%; }
         .sh-search { flex: 1; min-width: 0; }
@@ -277,46 +305,45 @@
             @foreach ($products as $p)
                 @php
                     $pid = 'p_' . md5($p['parent_sku']);
-                    $exportRows = [];
-                    foreach ($p['variants'] as $v) {
-                        $row = [$v['sku']];
-                        foreach ($storeColumns as $sc) {
-                            $q = $v['store_qty'][(int) $sc->store_id] ?? null;
-                            $row[] = $q === null ? '-' : $q;
-                        }
-                        $row[] = $v['qty'];
-                        $exportRows[] = $row;
-                    }
+                    // Payload ringkas dipakai JS untuk MEMBANGUN tabel varian saat
+                    // accordion dibuka (lazy) — DOM awal cuma header, bukan ribuan sel.
+                    $payload = [
+                        'q'  => (int) $p['qty'],
+                        'sq' => $p['store_qty'],           // total qty per toko (footer)
+                        'rk' => $p['store_rank'] ?? [],    // [store_id][sku] => rank medali
+                        'v'  => array_map(fn ($v) => [
+                            's'  => $v['sku'],
+                            'q'  => (int) $v['qty'],
+                            'sq' => $v['store_qty'],
+                        ], array_values($p['variants'])),
+                    ];
                 @endphp
-                <div class="accordion-item sales-product-item"
+                <div class="accordion-item sales-product-item sh-item"
                      data-search="{{ strtolower($p['parent_sku'] . ' ' . $p['product_name'] . ' ' . implode(' ', array_column($p['variants'], 'sku'))) }}"
                      data-qty="{{ $p['qty'] }}"
                      data-parent-sku="{{ $p['parent_sku'] }}"
-                     data-export="{{ json_encode($exportRows) }}"
-                     style="border:1px solid var(--md-outline-variant);border-radius:var(--md-shape-lg);
-                            margin-bottom:12px;overflow:hidden;background:var(--md-surface-container-lowest);">
+                     data-p="{{ json_encode($payload) }}">
                     <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button"
-                                data-bs-toggle="collapse" data-bs-target="#{{ $pid }}"
-                                style="background:var(--md-surface-container-lowest);box-shadow:none;">
-                            <div class="d-flex flex-wrap align-items-center w-100" style="gap:16px;padding-right:16px;">
-                                <div style="min-width:0;flex:1;">
-                                    <div style="font-weight:700;color:var(--md-on-surface);font-size:19px;letter-spacing:.1px;">{{ $p['parent_sku'] }}</div>
+                        <button class="accordion-button collapsed sh-acc-btn" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#{{ $pid }}">
+                            <div class="sh-head-row">
+                                <div class="sh-head-main">
+                                    <div class="sh-head-sku">{{ $p['parent_sku'] }}</div>
                                     <div class="mt-2 d-flex gap-1 flex-wrap">
                                         @foreach ($p['channels'] as $cName)
                                             <span class="md-chip secondary">{!! $channelIcon($cName) !!} {{ $cName }}</span>
                                         @endforeach
                                     </div>
                                 </div>
-                                <div style="text-align:right;">
-                                    <div style="font-size:11px;color:var(--md-on-surface-variant);font-weight:500;">Total Qty Terjual</div>
-                                    <div style="font-size:18px;font-weight:700;color:var(--md-primary);">{{ number_format($p['qty'], 0, ',', '.') }}</div>
+                                <div class="sh-head-right">
+                                    <div class="sh-head-lbl">Total Qty Terjual</div>
+                                    <div class="sh-head-qty">{{ number_format($p['qty'], 0, ',', '.') }}</div>
                                 </div>
                             </div>
                         </button>
                     </h2>
                     <div id="{{ $pid }}" class="accordion-collapse collapse">
-                        <div class="accordion-body" style="padding:16px;background:var(--md-surface-container-low);">
+                        <div class="accordion-body sh-body">
                             {{-- Toolbar --}}
                             <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
                                 <div style="position:relative;flex:1;min-width:160px;max-width:280px;">
@@ -328,57 +355,10 @@
                                     <i class="bi bi-download"></i> Export
                                 </button>
                             </div>
-                            {{-- Table --}}
+                            {{-- Tabel dibangun lazy oleh JS (show.bs.collapse) --}}
                             <div class="md-table-wrap">
-                                <div class="table-responsive">
-                                    <table class="md-table">
-                                        @php $thBg = 'background:var(--md-secondary-container);color:var(--md-on-secondary-container);'; @endphp
-                                        <thead>
-                                            <tr>
-                                                <th style="{{ $thBg }}">SKU Variation</th>
-                                                @foreach ($storeColumns as $sc)
-                                                    <th style="text-align:right;white-space:nowrap;{{ $thBg }}">{{ $cleanStore($sc->store_name) }}</th>
-                                                @endforeach
-                                                <th style="text-align:right;white-space:nowrap;{{ $thBg }}">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach ($p['variants'] as $v)
-                                                <tr data-sku="{{ strtolower($v['sku']) }}">
-                                                    <td style="font-weight:600;border-right:1px solid var(--md-outline-variant);border-bottom:1px solid var(--md-outline-variant);white-space:nowrap;">
-                                                        {{ $v['sku'] }}
-                                                    </td>
-                                                    @foreach ($storeColumns as $sc)
-                                                        @php
-                                                            $sid = (int) $sc->store_id;
-                                                            $q = $v['store_qty'][$sid] ?? null;
-                                                            $rank = $p['store_rank'][$sid][$v['sku']] ?? null;
-                                                        @endphp
-                                                        <td style="text-align:right;border-bottom:1px solid var(--md-outline-variant);white-space:nowrap;
-                                                                   {{ $q === null ? 'color:var(--md-on-surface-variant);' : '' }}">
-                                                            {{ $q === null ? '-' : number_format($q, 0, ',', '.') }}{!! $medal($rank) !!}
-                                                        </td>
-                                                    @endforeach
-                                                    <td style="text-align:right;font-weight:600;border-bottom:1px solid var(--md-outline-variant);border-left:1px solid var(--md-outline-variant);">
-                                                        {{ number_format($v['qty'], 0, ',', '.') }}
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                        @php $tfCell = 'padding:14px 16px;font-weight:700;background:var(--md-surface-container);border-top:2px solid var(--md-outline-variant);'; @endphp
-                                        <tfoot>
-                                            <tr>
-                                                <td style="{{ $tfCell }}color:var(--md-on-surface);">TOTAL</td>
-                                                @foreach ($storeColumns as $sc)
-                                                    @php $q = $p['store_qty'][(int) $sc->store_id] ?? null; @endphp
-                                                    <td style="{{ $tfCell }}text-align:right;{{ $q === null ? 'color:var(--md-on-surface-variant);font-weight:400;' : '' }}">
-                                                        {{ $q === null ? '-' : number_format($q, 0, ',', '.') }}
-                                                    </td>
-                                                @endforeach
-                                                <td style="{{ $tfCell }}text-align:right;border-left:1px solid var(--md-outline-variant);">{{ number_format($p['qty'], 0, ',', '.') }}</td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
+                                <div class="table-responsive sh-table-holder">
+                                    <div class="sh-loading">Memuat tabel…</div>
                                 </div>
                             </div>
                         </div>
@@ -398,7 +378,53 @@ window.SH = {
     minDate:   @json($minDate),
     initStart: @json($activeKey === null ? $from : null),
     initEnd:   @json($activeKey === null ? $to   : null),
+    storeCols: @json($storeColumns->map(fn ($sc) => ['id' => (int) $sc->store_id, 'name' => $cleanStore($sc->store_name)])->values()),
 };
+
+// ── Bangun tabel varian dari payload data-p (lazy, saat accordion dibuka) ──
+window.SH.buildTable = function (item) {
+    const p    = JSON.parse(item.dataset.p || '{}');
+    const cols = window.SH.storeCols || [];
+    const nf   = n => Number(n).toLocaleString('id-ID');
+    const MED_ICON  = { 1: 'bi-trophy-fill', 2: 'bi-award-fill', 3: 'bi-award-fill' };
+    const MED_TITLE = { 1: 'Best seller #1 (emas)', 2: 'Best seller #2 (perak)', 3: 'Best seller #3 (perunggu)' };
+    const medal = r => r ? `<span class="sh-medal sh-medal-${r}" title="${MED_TITLE[r]}"><i class="bi ${MED_ICON[r]}"></i></span>` : '';
+
+    let head = '<th class="sh-th">SKU Variation</th>';
+    cols.forEach(c => head += `<th class="sh-th sh-th-r">${c.name}</th>`);
+    head += '<th class="sh-th sh-th-r">Total</th>';
+
+    let body = '';
+    (p.v || []).forEach(v => {
+        let cells = `<td class="sh-td-sku">${v.s}</td>`;
+        cols.forEach(c => {
+            const q    = v.sq ? v.sq[c.id] : undefined;
+            const rank = (p.rk && p.rk[c.id]) ? p.rk[c.id][v.s] : null;
+            cells += `<td class="sh-td sh-td-r${q == null ? ' sh-muted' : ''}">${q == null ? '-' : nf(q)}${medal(rank)}</td>`;
+        });
+        cells += `<td class="sh-td sh-td-r sh-td-total">${nf(v.q)}</td>`;
+        body += `<tr data-sku="${(v.s || '').toLowerCase()}">${cells}</tr>`;
+    });
+
+    let foot = '<td class="sh-tf">TOTAL</td>';
+    cols.forEach(c => {
+        const q = p.sq ? p.sq[c.id] : undefined;
+        foot += `<td class="sh-tf sh-td-r${q == null ? ' sh-muted' : ''}">${q == null ? '-' : nf(q)}</td>`;
+    });
+    foot += `<td class="sh-tf sh-td-r sh-tf-total">${nf(p.q)}</td>`;
+
+    return `<table class="md-table sh-vtable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody><tfoot><tr>${foot}</tr></tfoot></table>`;
+};
+
+document.querySelectorAll('.sales-product-item .accordion-collapse').forEach(function (el) {
+    el.addEventListener('show.bs.collapse', function () {
+        const item   = el.closest('.sales-product-item');
+        const holder = el.querySelector('.sh-table-holder');
+        if (!holder || holder.dataset.built) return;
+        holder.innerHTML = window.SH.buildTable(item);
+        holder.dataset.built = '1';
+    });
+});
 
 document.getElementById('storeFilter').addEventListener('change', function () {
     const params = new URLSearchParams(window.location.search);
@@ -600,8 +626,15 @@ document.getElementById('storeFilter').addEventListener('change', function () {
         if (!btn) return;
         const item = e.target.closest('.sales-product-item');
         const parentSku = item.dataset.parentSku || 'export';
-        const rows = JSON.parse(item.dataset.export || '[]');
-        const headers = @json(array_merge(['SKU Variation'], $storeColumns->map(fn ($sc) => $cleanStore($sc->store_name))->all(), ['Total']));
+        const cols = window.SH.storeCols || [];
+        const p = JSON.parse(item.dataset.p || '{}');
+        // Bangun ulang baris export dari payload ringkas (sama isi dgn tabel).
+        const rows = (p.v || []).map(v => [
+            v.s,
+            ...cols.map(c => { const q = v.sq ? v.sq[c.id] : undefined; return q == null ? '-' : q; }),
+            v.q,
+        ]);
+        const headers = ['SKU Variation', ...cols.map(c => c.name), 'Total'];
 
         btn.disabled = true;
         ensureXLSX().then((XLSX) => {

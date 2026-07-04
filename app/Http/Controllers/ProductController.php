@@ -58,13 +58,10 @@ class ProductController extends Controller
         }
 
         // Penjualan 30 hari (toko terpilih) per induk — untuk kolom ringkas.
+        // Query ringan (1 toko, jendela 30h) alih-alih breakdown 5-periode penuh.
         $sales = collect();
         if ($jubelioStoreId && ! empty($parents)) {
-            $salesData = $salesService->getForParentSkus($parents);
-            foreach ($parents as $pk) {
-                $byVariant = $salesData['stores'][$pk][$jubelioStoreId]['sales']['30d'] ?? [];
-                $sales[$pk] = array_sum($byVariant);
-            }
+            $sales = collect($salesService->getParentSkuTotalsForStore($parents, (int) $jubelioStoreId, 30));
         }
 
         return view('products.index', compact('catalog', 'search', 'stores', 'storeId', 'prices', 'sales'));
