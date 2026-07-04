@@ -28,6 +28,16 @@ class Store extends Model
         return $this->hasMany(DailyStoreStat::class);
     }
 
+    public function tiktokListings(): HasMany
+    {
+        return $this->hasMany(TiktokListing::class);
+    }
+
+    public function tiktokListingSkus(): HasMany
+    {
+        return $this->hasMany(TiktokListingSku::class);
+    }
+
     public function productAds(): BelongsToMany
     {
         return $this->belongsToMany(ProductAd::class, 'product_ad_store')
