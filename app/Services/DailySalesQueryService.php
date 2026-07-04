@@ -88,6 +88,43 @@ class DailySalesQueryService
     }
 
     /**
+     * Ringkas: total qty terjual per produk induk untuk SATU toko dalam N hari
+     * terakhir. Jauh lebih murah dari getForParentSkus() — halaman katalog cuma
+     * butuh satu angka "Terjual 30h" per induk, tak perlu breakdown 5-periode ×
+     * per-tanggal × semua toko. Query hanya jendela N hari + toko terpilih, group
+     * per varian (bukan per tanggal), lalu owner-match di PHP.
+     *
+     * @param  string[]  $parentSkus
+     * @return array<string, int>  [parentSku => qty]
+     */
+    public function getParentSkuTotalsForStore(array $parentSkus, int $storeId, int $days = 30, int $channelId = 131076): array
+    {
+        $totals = array_fill_keys($parentSkus, 0);
+        if (empty($parentSkus) || $storeId <= 0) {
+            return $totals;
+        }
+
+        $since = Carbon::today()->subDays($days - 1)->toDateString();
+
+        $query = DB::table('orders')
+            ->where('channel_id', $channelId)
+            ->where('store_id', $storeId)
+            ->where('sales_date', '>=', $since)
+            ->selectRaw('sku_variant as sku, SUM(qty) as qty')
+            ->groupBy('sku_variant');
+        SkuMatch::wherePrefix($query, 'sku_variant', $parentSkus);
+
+        foreach ($query->get() as $row) {
+            $parent = SkuMatch::owner($row->sku, $parentSkus);
+            if ($parent !== null) {
+                $totals[$parent] += (int) $row->qty;
+            }
+        }
+
+        return $totals;
+    }
+
+    /**
      * Bersihkan nama toko dari prefix channel & suffix (TTS) — sama dengan
      * regex di resources/views/sales-history/index.blade.php.
      */
