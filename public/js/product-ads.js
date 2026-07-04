@@ -58,9 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Handle inline onchange yang dipindah ke JS (category + status select)
-    var categoryEl = document.getElementById('filter_category');
-    if (categoryEl) categoryEl.addEventListener('change', submitFilter);
+    // Handle inline onchange yang dipindah ke JS (status select)
     var statusEl = document.getElementById('filter_status');
     if (statusEl) statusEl.addEventListener('change', submitFilter);
 
@@ -70,25 +68,10 @@ document.addEventListener('DOMContentLoaded', function () {
             var button = event.relatedTarget;
             var actionUrl = button.getAttribute('data-action');
             var skuData = button.getAttribute('data-sku');
-            var categoryData = button.getAttribute('data-category');
             var form = editProductModal.querySelector('#editProductForm');
 
             form.setAttribute('action', actionUrl);
             form.querySelector('#edit_parent_sku').value = skuData;
-            form.querySelector('#edit_category_id').value = categoryData;
-        });
-    }
-
-    var editCategoryModal = document.getElementById('editCategoryModal');
-    if (editCategoryModal) {
-        editCategoryModal.addEventListener('show.bs.modal', function (event) {
-            var button = event.relatedTarget;
-            var actionUrl = button.getAttribute('data-action');
-            var categoryData = button.getAttribute('data-category');
-            var form = editCategoryModal.querySelector('#editCategoryForm');
-
-            form.setAttribute('action', actionUrl);
-            form.querySelector('#edit_name').value = categoryData;
         });
     }
 

@@ -30,9 +30,6 @@
                 @endif
             </span>
             <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:3px">
-                @if($alert['category'])
-                    <span class="md-chip surface" style="font-size:10px;padding:2px 7px;flex-shrink:0">{{ $alert['category'] }}</span>
-                @endif
                 @php
                     $storeShow  = array_slice($alert['stores'], 0, 2);
                     $storeExtra = count($alert['stores']) - 2;

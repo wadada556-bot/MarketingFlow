@@ -510,11 +510,10 @@ class DashboardController extends Controller
         $stockApiUnavailable = false;
 
         $products = Product::query()
-            ->select('id', 'parent_sku', 'category_id')
+            ->select('id', 'parent_sku')
             ->with([
                 'productAds:id,product_id',
                 'productAds.stores:id,name',
-                'category:id,name',
             ])
             ->whereHas('productAds')
             ->limit(100)
@@ -579,7 +578,6 @@ class DashboardController extends Controller
                         'parent_sku'   => $parentSku,
                         'status'       => $overallStatus,
                         'stores'       => $storeNames,
-                        'category'     => $product->category?->name ?? '',
                         'variants'     => array_values($alertClassified),
                         'alert_count'  => count($alertClassified),
                         'danger_count' => count(array_filter($alertClassified, fn ($v) => $v['status'] === 'danger')),

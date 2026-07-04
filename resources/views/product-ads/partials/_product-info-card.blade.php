@@ -19,10 +19,6 @@
                 <p class="mb-0" style="font-size:15px;font-weight:500;color:var(--md-on-surface)">{{ $product->parent_sku ?? '–' }}</p>
             </div>
             <div class="col-6">
-                <p class="mb-1" style="font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--md-on-surface-variant)">Kategori</p>
-                <p class="mb-0" style="font-size:15px;color:var(--md-on-surface)">{{ $product->category->name ?? '–' }}</p>
-            </div>
-            <div class="col-6">
                 <p class="mb-1" style="font-size:11px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;color:var(--md-on-surface-variant)">Status Iklan</p>
                 <div class="mt-1">{!! str_replace(['Active', 'Completed', 'Stopped'], ['Aktif', 'Selesai', 'Dihentikan'], $status_badge) !!}</div>
             </div>

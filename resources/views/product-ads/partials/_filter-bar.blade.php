@@ -21,19 +21,6 @@
                 </select>
             </div>
 
-            <div class="col-12 col-sm-6 col-md-3 col-lg-2">
-                <label for="filter_category">Kategori</label>
-                <select class="form-select" id="filter_category" name="category">
-                    <option value="">Semua Kategori</option>
-                    @foreach($categories as $category)
-                        <option value="{{ $category->id }}"
-                                {{ request('category') == $category->id ? 'selected' : '' }}>
-                            {{ $category->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
             <div class="col-12 col-sm-6 col-md-3 col-lg-3">
                 <label for="filter_store">Toko</label>
                 <select class="form-select" id="filter_store" name="store[]" multiple
