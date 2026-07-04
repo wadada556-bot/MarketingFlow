@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 class ProductAd extends Model
 {
@@ -76,11 +75,6 @@ class ProductAd extends Model
         return $this->belongsTo(Product::class);
     }
 
-    public function category(): HasOneThrough
-    {
-        return $this->hasOneThrough(Category::class, Product::class);
-    }
-
     public function stores(): BelongsToMany
     {
         return $this->belongsToMany(Store::class, 'product_ad_store')
@@ -102,10 +96,6 @@ class ProductAd extends Model
         $query->when($filters['status'] ?? null, fn(Builder $q, $status) => 
             $q->where('status', $status)
         );
-
-        $query->when($filters['category'] ?? null, function (Builder $q, $category) {
-            $q->whereHas('product', fn($sub) => $sub->where('category_id', $category));
-        });
 
         $query->when($filters['store'] ?? null, function (Builder $q, mixed $stores) {
             $storeIds = is_array($stores) ? $stores : [$stores];

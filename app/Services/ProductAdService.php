@@ -29,8 +29,7 @@ class ProductAdService
     {
         $query = ProductAd::select('id', 'product_id', 'status', 'testing_status', 'created_at', 'testing_completed_at')
             ->with([
-                'product:id,parent_sku,category_id',
-                'product.category:id,name',
+                'product:id,parent_sku',
                 'stores:id,name'
             ])
             ->filter($filters);

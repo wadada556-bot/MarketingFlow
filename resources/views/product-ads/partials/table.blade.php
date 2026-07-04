@@ -66,9 +66,6 @@
                 </td>
                 <td>
                     <p class="mb-0 fw-medium" style="font-size:14px;color:var(--md-on-surface)">{{ $parentSku }}</p>
-                    <p class="mb-0 mt-1" style="font-size:12px;color:var(--md-on-surface-variant)">
-                        {{ $productAd->product->category->name ?? 'Uncategorized' }}
-                    </p>
                 </td>
                 <td>
                     <div class="d-flex flex-wrap gap-1">

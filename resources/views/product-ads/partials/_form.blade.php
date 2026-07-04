@@ -24,26 +24,6 @@
     @enderror
 </div>
 
-{{-- ── Kategori Produk (dikembangkan / produk baru) ─────────────── --}}
-@php
-    $curCat = old('category_id')
-        ?? ((isset($productAd) && $productAd->product) ? $productAd->product->category_id : null);
-@endphp
-<div class="md-field">
-    <label for="category_id">Kategori Produk</label>
-    <select class="form-select @error('category_id') is-invalid @enderror" id="category_id" name="category_id">
-        <option value="">— Belum dikategorikan —</option>
-        @foreach(($categories ?? []) as $cat)
-            <option value="{{ $cat->id }}" {{ (string) $curCat === (string) $cat->id ? 'selected' : '' }}>
-                {{ ucwords($cat->name) }}
-            </option>
-        @endforeach
-    </select>
-    @error('category_id')
-        <div class="invalid-feedback d-block">{{ $message }}</div>
-    @enderror
-</div>
-
 {{-- ── Status Iklan + Status Testing (chip radio terpisah) ─────── --}}
 @php
     $statusOptions = [

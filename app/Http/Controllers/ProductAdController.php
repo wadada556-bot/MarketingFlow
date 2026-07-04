@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreProductAdRequest;
 use App\Http\Requests\UpdateProductAdRequest;
 use App\Http\Requests\BulkDeleteProductAdRequest;
-use App\Models\Category;
 use App\Models\JubelioInventory;
 use App\Models\Product;
 use App\Models\ProductAd;
@@ -26,7 +25,6 @@ class ProductAdController extends Controller
 
     public function index(Request $request)
     {
-        $categories = Category::select('id', 'name')->orderBy('name')->get();
         $products = collect(
             Cache::remember('product_dropdown_list', 600,
                 fn() => Product::select('id', 'parent_sku')->orderBy('parent_sku')
@@ -38,7 +36,7 @@ class ProductAdController extends Controller
         $currentStatus = $request->testing_status ?? 'semua';
         $tabCounts = $this->productAdService->getTabCounts();
 
-        $filters = $request->only(['product', 'status', 'category', 'store', 'testing_status']);
+        $filters = $request->only(['product', 'status', 'store', 'testing_status']);
         $productAds = $this->productAdService->getPaginatedAds($filters, $currentStatus);
 
         // Data stok/penjualan ERP TIDAK di-fetch di sini — halaman render instan.
@@ -47,7 +45,6 @@ class ProductAdController extends Controller
             'productAds',
             'products',
             'stores',
-            'categories',
             'tabCounts',
             'currentStatus',
         ));
@@ -62,7 +59,7 @@ class ProductAdController extends Controller
     public function erpData(Request $request)
     {
         $currentStatus = $request->testing_status ?? 'semua';
-        $filters       = $request->only(['product', 'status', 'category', 'store', 'testing_status']);
+        $filters       = $request->only(['product', 'status', 'store', 'testing_status']);
 
         // Query ringan: hanya id + parent_sku, tapi tetap eager-load stores:id,name
         // (dipakai untuk membatasi storeSales hanya ke toko tempat iklan ini jalan).
@@ -285,9 +282,6 @@ class ProductAdController extends Controller
         // Upsert anchor products dari parent_sku katalog → data selalu sinkron
         // dgn jubelio_inventory (SKU standar + item_group_id). FK ke products.id.
         $product = $this->resolveAnchor($data['parent_sku']);
-        if (array_key_exists('category_id', $data)) {
-            $product->update(['category_id' => $data['category_id'] ?: null]);
-        }
         $data['product_id'] = $product->id;
 
         $this->productAdService->createProductAd($data);
@@ -300,8 +294,7 @@ class ProductAdController extends Controller
     public function show(ProductAd $productAd)
     {
         $productAd->load([
-            'product:id,parent_sku,category_id',
-            'product.category:id,name',
+            'product:id,parent_sku',
             'stores:id,name',
             'productAdLogs' => fn($query) => $query
                 ->select('id', 'product_ad_id', 'action_date', 'description')
@@ -342,19 +335,15 @@ class ProductAdController extends Controller
             )
         )->map(fn($a) => (object) $a);
         $stores = Store::select(['id', 'name'])->orderBy('name')->get();
-        $categories = Category::select('id', 'name')->orderBy('name')->get();
-        $productAd->load('stores', 'product:id,parent_sku,category_id');
+        $productAd->load('stores', 'product:id,parent_sku');
 
-        return view('product-ads.edit', compact('productAd', 'products', 'stores', 'categories'));
+        return view('product-ads.edit', compact('productAd', 'products', 'stores'));
     }
 
     public function update(UpdateProductAdRequest $request, ProductAd $productAd)
     {
         $data = $request->validated();
         $product = $this->resolveAnchor($data['parent_sku']);
-        if (array_key_exists('category_id', $data)) {
-            $product->update(['category_id' => $data['category_id'] ?: null]);
-        }
         $data['product_id'] = $product->id;
 
         $this->productAdService->updateProductAd($productAd, $data);

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductAdController;
@@ -33,14 +32,9 @@ Route::get('product-ads/{product_ad}/stock-detail', [ProductAdController::class,
     ->name('product-ads.stock-detail');
 Route::resource('product-ads', ProductAdController::class);
 Route::resource('product-ad-logs', ProductAdLogController::class);
-Route::delete('/products/bulk-destroy', [ProductController::class, 'bulkDestroy'])
-    ->name('products.bulk-destroy');
-Route::get('/products/suggest', [ProductController::class, 'suggest'])
-    ->name('products.suggest');
 Route::get('/products/variants', [ProductController::class, 'variants'])
     ->name('products.variants');
-Route::resource('products', ProductController::class);
-Route::resource('categories', CategoryController::class);
+Route::resource('products', ProductController::class)->only(['index']);
 Route::resource('stores', StoreController::class);
 
 Route::get('/sales-history', [SalesHistoryController::class, 'index'])->name('sales-history.index');

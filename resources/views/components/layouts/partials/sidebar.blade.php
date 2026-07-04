@@ -53,13 +53,6 @@
                     'badge'  => 0,
                 ],
                 [
-                    'label'  => 'Categories',
-                    'icon'   => 'bi-tags',
-                    'active' => request()->is('categories*'),
-                    'href'   => '/categories',
-                    'badge'  => 0,
-                ],
-                [
                     'label'  => 'Stores',
                     'icon'   => 'bi-shop',
                     'active' => request()->is('stores*'),
