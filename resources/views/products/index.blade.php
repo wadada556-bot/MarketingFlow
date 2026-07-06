@@ -20,39 +20,31 @@
     const rupiah = (v) => (v === null || v === undefined)
         ? '<span style="color:var(--md-on-surface-variant)">-</span>'
         : 'Rp' + Number(v).toLocaleString('id-ID');
-
-    function salesSummary(s) {
-        s = s || {};
-        const item = (lbl, v) => `<span>${lbl}: <strong style="color:var(--md-on-surface)">${num(v)}</strong></span>`;
-        return `<div style="display:flex;gap:18px;flex-wrap:wrap;padding:6px 8px 10px 44px;font-size:12.5px;color:var(--md-on-surface-variant)">
-            <span style="color:var(--md-on-surface-variant)">Terjual —</span>
-            ${item('Hari ini', s.today)} ${item('Kemarin', s.yesterday)}
-            ${item('7h', s['7d'])} ${item('30h', s['30d'])} ${item('90h', s['90d'])}
-        </div>`;
-    }
+    const dash   = (v) => (v === null || v === undefined || v === '')
+        ? '<span style="color:var(--md-on-surface-variant)">-</span>' : v;
 
     function buildDetail(d) {
         const variants = d.variants || [];
-        const summary  = salesSummary(d.sales_by_period);
         if (!variants.length) {
-            return summary + '<div style="padding:0 44px 16px;color:var(--md-on-surface-variant);font-size:13px">Tidak ada varian.</div>';
+            return '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Tidak ada varian.</div>';
         }
         const rows = variants.map(v => `
             <tr>
+                <td style="font-size:13px">${dash(v.product_id)}</td>
+                <td style="font-size:13px">${dash(v.sku_id)}</td>
                 <td style="font-size:13px">${v.sku}</td>
                 <td style="font-size:13px;color:var(--md-on-surface-variant)">${v.label ?? '-'}</td>
                 <td class="text-end" style="font-size:13px">${num(v.stok)}</td>
                 <td class="text-end" style="font-size:13px">${num(v.po)}</td>
-                <td class="text-end" style="font-size:13px">${num(v.sold30)}</td>
                 <td class="text-end" style="font-size:13px">${rupiah(v.hpp)}</td>
                 <td class="text-end" style="font-size:13px">${rupiah(v.retail)}</td>
                 <td class="text-end" style="font-size:13px">${rupiah(v.promo)}</td>
             </tr>`).join('');
-        return summary + `<div style="padding:0 8px 8px 44px">
+        return `<div style="padding:16px 8px 8px 44px;overflow-x:auto">
             <table class="table align-middle mb-0">
               <thead><tr style="color:var(--md-on-surface-variant);font-size:12px">
-                <th>SKU Varian</th><th>Variasi</th>
-                <th class="text-end">Stok</th><th class="text-end">PO</th><th class="text-end">Terjual 30h</th>
+                <th>Product ID</th><th>SKU ID</th><th>Seller SKU</th><th>Variasi</th>
+                <th class="text-end">Stok</th><th class="text-end">PO</th>
                 <th class="text-end">HPP</th><th class="text-end">Harga Normal</th><th class="text-end">Harga Promo</th>
               </tr></thead>
               <tbody>${rows}</tbody>
@@ -80,13 +72,14 @@
         const td = document.createElement('td');
         td.colSpan = 8;
         td.style.background = 'var(--md-surface-container-low)';
+        // (kolom header: expand, SKU Induk, Product ID, Varian, Total Stok, Harga Normal, Harga Promo, Aksi)
         td.innerHTML = '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Memuat varian…</div>';
         tr.appendChild(td);
         row.after(tr);
         btn.setAttribute('aria-expanded', 'true');
         btn.style.transform = 'rotate(90deg)';
 
-        const url = `${VARIANTS_URL}?parent=${encodeURIComponent(row.dataset.parent)}&store_id=${STORE_ID ?? ''}`;
+        const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(row.dataset.productId)}&store_id=${STORE_ID ?? ''}`;
         fetch(url)
             .then(r => r.json())
             .then(d => { td.innerHTML = buildDetail(d); })
@@ -143,9 +136,18 @@
                 </select>
             </div>
         @endif
+
+        {{-- Export seluruh listing+varian toko terpilih ke .xlsx --}}
+        <a href="{{ route('products.export', ['store_id' => $storeId]) }}"
+           class="btn d-inline-flex align-items-center gap-2"
+           title="Export semua data toko ini ke Excel"
+           style="background:var(--md-secondary-container);color:var(--md-on-secondary-container);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 16px">
+            <i class="bi bi-file-earmark-excel" style="font-size:15px"></i>
+            Export
+        </a>
     </form>
 
-    @include('products.partials.table', ['catalog' => $catalog, 'prices' => $prices])
+    @include('products.partials.table', ['catalog' => $catalog, 'meta' => $meta])
 
     @if($catalog->isNotEmpty())
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4 gap-2">
@@ -156,7 +158,7 @@
                 <strong style="color:var(--md-on-surface)">{{ $catalog->lastItem() ?? 0 }}</strong>
                 dari
                 <strong style="color:var(--md-on-surface)">{{ $catalog->total() }}</strong>
-                produk induk
+                produk (listing)
             </p>
             <div class="pagination-wrapper">
                 {{ $catalog->withQueryString()->links() }}
