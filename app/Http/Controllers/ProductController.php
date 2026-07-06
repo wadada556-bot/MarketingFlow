@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\StoreProductsExport;
 use App\Models\Store;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -98,7 +99,30 @@ class ProductController extends Controller
             }
         }
 
-        return view('products.index', compact('catalog', 'search', 'stores', 'storeId', 'meta'));
+        // Kebaruan data per sumber (untuk toko terpilih), agar user tahu seberapa
+        // baru data sebelum export. synced_at diisi importer; fallback updated_at.
+        // Stok/HPP global (master SKU); harga & listing per toko.
+        $freshFmt = function ($ts) {
+            if (! $ts) {
+                return ['rel' => 'belum ada', 'exact' => null];
+            }
+            $c = Carbon::parse($ts)->locale('id');
+
+            return ['rel' => $c->diffForHumans(), 'exact' => $c->isoFormat('D MMM YYYY, HH:mm')];
+        };
+        $freshness = [
+            ['label' => 'Stok & HPP', 'hint' => 'dari Jubelio'] + $freshFmt(
+                DB::table('jubelio_inventory')->max(DB::raw('COALESCE(synced_at, updated_at)'))
+            ),
+            ['label' => 'Harga diskon', 'hint' => 'scrape Tokopedia'] + $freshFmt(
+                DB::table('store_sku_prices')->where('store_id', $storeId)->max(DB::raw('COALESCE(synced_at, updated_at)'))
+            ),
+            ['label' => 'ID Produk/SKU TikTok', 'hint' => 'import TikTok Seller Center'] + $freshFmt(
+                DB::table('tiktok_listings')->where('store_id', $storeId)->max(DB::raw('COALESCE(synced_at, updated_at)'))
+            ),
+        ];
+
+        return view('products.index', compact('catalog', 'search', 'stores', 'storeId', 'meta', 'freshness'));
     }
 
     /**

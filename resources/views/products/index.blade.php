@@ -98,6 +98,23 @@
         </div>
     </div>
 
+    {{-- Kebaruan data per sumber (toko terpilih) — cek sebelum export.
+         Hover tiap item untuk tanggal & jam pasti. --}}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3"
+         style="font-size:12.5px;color:var(--md-on-surface-variant)">
+        <span class="d-inline-flex align-items-center gap-1">
+            <i class="bi bi-clock-history"></i> Diperbarui
+        </span>
+        @foreach($freshness as $f)
+            <span class="d-inline-flex align-items-center gap-1"
+                  style="background:var(--md-surface-container-high);border-radius:var(--md-shape-xs);padding:2px 10px"
+                  title="{{ $f['label'] }} ({{ $f['hint'] }}){{ $f['exact'] ? ' — ' . $f['exact'] : '' }}">
+                <strong style="color:var(--md-on-surface);font-weight:500">{{ $f['label'] }}:</strong>
+                {{ $f['rel'] }}
+            </span>
+        @endforeach
+    </div>
+
     @include('components.alert')
 
     <form method="GET" action="{{ route('products.index') }}" class="mb-3 d-flex flex-wrap align-items-center gap-2" autocomplete="off">
