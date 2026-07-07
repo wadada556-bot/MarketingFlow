@@ -176,6 +176,38 @@ class ProductController extends Controller
     }
 
     /**
+     * Riwayat perubahan harga satu varian (SKU) pada toko terpilih, untuk aksi
+     * "Lihat histori harga" di detail varian. Data dari store_sku_price_histories
+     * (diisi trigger DB tiap harga berubah saat sync). Urut terbaru dulu.
+     */
+    public function priceHistory(Request $request)
+    {
+        $skuCode = trim((string) $request->input('sku_code', ''));
+        $storeId = $request->integer('store_id');
+
+        if ($skuCode === '' || ! $storeId) {
+            return response()->json(['changes' => []]);
+        }
+
+        $rows = DB::table('store_sku_price_histories')
+            ->where('store_id', $storeId)
+            ->where('sku_code', $skuCode)
+            ->orderByDesc('changed_at')
+            ->orderByDesc('id')
+            ->get(['price_type', 'old_price', 'new_price', 'changed_at']);
+
+        return response()->json([
+            'sku_code' => $skuCode,
+            'changes'  => $rows->map(fn ($r) => [
+                'type'       => $r->price_type, // 'retail' | 'promotion'
+                'old'        => (int) $r->old_price,
+                'new'        => (int) $r->new_price,
+                'changed_at' => Carbon::parse($r->changed_at)->format('d M Y H:i'),
+            ])->all(),
+        ]);
+    }
+
+    /**
      * Export .xlsx katalog SELURUH toko terpilih (semua listing+varian), parent_sku
      * (label induk) di tiap baris. Nama file: products_{toko}_{tgl}_{jam}.xlsx.
      */
