@@ -38,6 +38,8 @@ Route::get('/products/price-history', [ProductController::class, 'priceHistory']
     ->name('products.price-history');
 Route::get('/products/export', [ProductController::class, 'export'])
     ->name('products.export');
+Route::post('/products/hpp', [ProductController::class, 'updateHpp'])
+    ->name('products.update-hpp');
 Route::resource('products', ProductController::class)->only(['index']);
 Route::resource('stores', StoreController::class);
 

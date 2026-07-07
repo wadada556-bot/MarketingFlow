@@ -14,7 +14,8 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $search = trim((string) $request->input('search'));
+        $search   = trim((string) $request->input('search'));
+        $hppEmpty = $request->boolean('hpp_empty');
 
         // Toko untuk pemilih harga (harga jual berbeda per toko)
         $stores  = Store::select('id', 'name', 'jubelio_store_id')->orderBy('name')->get();
@@ -43,6 +44,16 @@ class ProductController extends Controller
                                         ->orWhere('ts2.sku_code', 'like', "%{$search}%");
                                 });
                         });
+                });
+            })
+            ->when($hppEmpty, function ($q) use ($storeId) {
+                // Hanya listing yang punya ≥1 varian dengan HPP belum terisi (=0).
+                $q->whereExists(function ($sub) use ($storeId) {
+                    $sub->from('tiktok_listing_skus as tse')
+                        ->join('jubelio_inventory as je', 'je.sku_code', '=', 'tse.sku_code')
+                        ->whereColumn('tse.listing_id', 'tl.id')
+                        ->where('tse.store_id', $storeId)
+                        ->where('je.hpp', '=', 0);
                 });
             })
             ->select(
@@ -122,7 +133,7 @@ class ProductController extends Controller
             ),
         ];
 
-        return view('products.index', compact('catalog', 'search', 'stores', 'storeId', 'meta', 'freshness'));
+        return view('products.index', compact('catalog', 'search', 'hppEmpty', 'stores', 'storeId', 'meta', 'freshness'));
     }
 
     /**
@@ -134,6 +145,7 @@ class ProductController extends Controller
     {
         $productId = trim((string) $request->input('product_id', ''));
         $storeId   = $request->integer('store_id');
+        $hppEmpty  = $request->boolean('hpp_empty');
 
         if ($productId === '') {
             return response()->json(['variants' => []]);
@@ -151,6 +163,7 @@ class ProductController extends Controller
             })
             ->where('tl.store_id', $storeId)
             ->where('tl.product_id', $productId)
+            ->when($hppEmpty, fn ($q) => $q->where('j.hpp', '=', 0))
             ->orderBy('ts.sku_id')
             ->get([
                 'j.sku_code', 'j.variation_label', 'j.stok', 'j.po_qty', 'j.hpp',
@@ -220,6 +233,30 @@ class ProductController extends Controller
         $filename = 'products_' . Str::slug($store->name, '_') . '_' . now()->format('Y-m-d_His') . '.xlsx';
 
         return Excel::download(new StoreProductsExport($storeId), $filename);
+    }
+
+    /**
+     * Isi/ubah HPP satu SKU secara manual (dipakai untuk produk bundling yang
+     * HPP-nya tidak tersedia di Jubelio). Nilai ini tak akan tertimpa saat sync
+     * selama Jubelio mengirim 0 (lihat SyncJubelioInventory). hpp = 0 berarti
+     * "belum terisi".
+     */
+    public function updateHpp(Request $request)
+    {
+        $data = $request->validate([
+            'sku_code' => ['required', 'string', 'exists:jubelio_inventory,sku_code'],
+            'hpp'      => ['required', 'integer', 'min:0'],
+        ]);
+
+        DB::table('jubelio_inventory')
+            ->where('sku_code', $data['sku_code'])
+            ->update(['hpp' => $data['hpp'], 'updated_at' => now()]);
+
+        return response()->json([
+            'ok'       => true,
+            'sku_code' => $data['sku_code'],
+            'hpp'      => (int) $data['hpp'],
+        ]);
     }
 
     /**

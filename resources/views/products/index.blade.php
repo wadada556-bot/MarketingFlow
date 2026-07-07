@@ -15,7 +15,10 @@
 (function () {
     const VARIANTS_URL      = @json(route('products.variants'));
     const PRICE_HISTORY_URL = @json(route('products.price-history'));
+    const UPDATE_HPP_URL    = @json(route('products.update-hpp'));
     const STORE_ID          = @json($storeId);
+    const HPP_EMPTY         = @json($hppEmpty);
+    const CSRF              = document.querySelector('meta[name="csrf-token"]').content;
 
     const num    = (v) => Number(v || 0).toLocaleString('id-ID');
     const rupiah = (v) => (v === null || v === undefined)
@@ -23,6 +26,10 @@
         : 'Rp' + Number(v).toLocaleString('id-ID');
     const dash   = (v) => (v === null || v === undefined || v === '')
         ? '<span style="color:var(--md-on-surface-variant)">-</span>' : v;
+    // HPP: 0 dianggap "belum terisi" → tampilkan "-".
+    const hppDisplay = (h) => Number(h) > 0
+        ? 'Rp' + num(h)
+        : '<span style="color:var(--md-on-surface-variant)">-</span>';
 
     function buildDetail(d) {
         const variants = d.variants || [];
@@ -37,7 +44,15 @@
                 <td style="font-size:13px;color:var(--md-on-surface-variant)">${v.label ?? '-'}</td>
                 <td class="text-end" style="font-size:13px">${num(v.stok)}</td>
                 <td class="text-end" style="font-size:13px">${num(v.po)}</td>
-                <td class="text-end" style="font-size:13px">${rupiah(v.hpp)}</td>
+                <td class="text-end" style="font-size:13px;white-space:nowrap">
+                    <span class="js-hpp-val">${hppDisplay(v.hpp)}</span>
+                    <button type="button" class="js-hpp-edit"
+                            data-sku="${encodeURIComponent(v.sku)}" data-hpp="${v.hpp}"
+                            title="Isi / ubah HPP"
+                            style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:0 2px;margin-left:4px;cursor:pointer">
+                        <i class="bi bi-pencil" style="font-size:12px"></i>
+                    </button>
+                </td>
                 <td class="text-end" style="font-size:13px">${rupiah(v.retail)}</td>
                 <td class="text-end" style="font-size:13px">${rupiah(v.promo)}</td>
                 <td class="text-center">
@@ -89,7 +104,7 @@
         btn.setAttribute('aria-expanded', 'true');
         btn.style.transform = 'rotate(90deg)';
 
-        const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(row.dataset.productId)}&store_id=${STORE_ID ?? ''}`;
+        const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(row.dataset.productId)}&store_id=${STORE_ID ?? ''}${HPP_EMPTY ? '&hpp_empty=1' : ''}`;
         fetch(url)
             .then(r => r.json())
             .then(d => { td.innerHTML = buildDetail(d); })
@@ -144,6 +159,67 @@
             .then(d => { modalBody.innerHTML = renderHistory(d); })
             .catch(() => { modalBody.innerHTML = '<div style="padding:24px;text-align:center;color:var(--md-error);font-size:13px">Gagal memuat histori.</div>'; });
     });
+
+    // ── Isi / ubah HPP (modal) ───────────────────────────────────────────────
+    const hppOverlay = document.getElementById('hpp-modal');
+    const hppForm    = document.getElementById('hpp-form');
+    const hppInput   = document.getElementById('hpp-input');
+    const hppSkuLbl  = document.getElementById('hpp-sku-label');
+    const hppSave    = document.getElementById('hpp-save');
+    let   hppTargetBtn = null;
+
+    function closeHpp() { hppOverlay.style.display = 'none'; hppTargetBtn = null; }
+    hppOverlay.addEventListener('click', (e) => { if (e.target === hppOverlay || e.target.closest('.js-hpp-cancel')) closeHpp(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && hppOverlay.style.display === 'flex') closeHpp(); });
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.js-hpp-edit');
+        if (!btn) return;
+        hppTargetBtn = btn;
+        hppSkuLbl.textContent = decodeURIComponent(btn.dataset.sku);
+        hppInput.value = Number(btn.dataset.hpp) > 0 ? btn.dataset.hpp : '';
+        hppOverlay.style.display = 'flex';
+        setTimeout(() => hppInput.focus(), 40);
+    });
+
+    hppForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!hppTargetBtn) return;
+        const sku = decodeURIComponent(hppTargetBtn.dataset.sku);
+        const val = Math.max(0, Math.floor(Number(hppInput.value) || 0));
+        hppSave.disabled = true;
+
+        fetch(UPDATE_HPP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            body: JSON.stringify({ sku_code: sku, hpp: val }),
+        })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(d => {
+            // Saat filter "HPP belum terisi" aktif & HPP kini terisi (>0), baris
+            // tak lagi cocok filter → hilangkan otomatis dari daftar varian.
+            if (HPP_EMPTY && Number(d.hpp) > 0) {
+                const tr        = hppTargetBtn.closest('tr');
+                const tbody     = tr.parentElement;
+                const detailRow = tr.closest('.js-detail-row');
+                tr.remove();
+                // Varian terakhir listing ini terisi → hilangkan juga baris induk
+                // + baris detailnya dari tabel utama (tak lagi cocok filter).
+                if (!tbody.querySelector('tr')) {
+                    const catalogRow = detailRow ? detailRow.previousElementSibling : null;
+                    if (detailRow) detailRow.remove();
+                    if (catalogRow && catalogRow.classList.contains('js-catalog-row')) catalogRow.remove();
+                }
+            } else {
+                const cell = hppTargetBtn.closest('td');
+                cell.querySelector('.js-hpp-val').innerHTML = hppDisplay(d.hpp);
+                hppTargetBtn.dataset.hpp = d.hpp;
+            }
+            closeHpp();
+        })
+        .catch(() => { alert('Gagal menyimpan HPP. Coba lagi.'); })
+        .finally(() => { hppSave.disabled = false; });
+    });
 })();
 </script>
 @endpush
@@ -177,33 +253,36 @@
     @include('components.alert')
 
     <form method="GET" action="{{ route('products.index') }}" class="mb-3 d-flex flex-wrap align-items-center gap-2" autocomplete="off">
-        <div style="position:relative;max-width:360px;flex:1 1 260px">
-            <div class="input-group">
-                <span class="input-group-text"
-                      style="background:var(--md-surface);border-color:var(--md-outline);border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs)">
-                    <i class="bi bi-search" style="color:var(--md-on-surface-variant);font-size:14px"></i>
-                </span>
-                <input type="text" name="search" value="{{ $search ?? '' }}"
-                       class="form-control"
-                       placeholder="Cari SKU induk…"
-                       style="border-color:var(--md-outline);font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
-                @if(!empty($search))
-                    <a href="{{ route('products.index', ['store_id' => $storeId]) }}"
-                       class="input-group-text"
-                       style="background:var(--md-surface);border-color:var(--md-outline);border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;color:var(--md-on-surface-variant);text-decoration:none"
-                       title="Hapus pencarian">
-                        <i class="bi bi-x-lg" style="font-size:12px"></i>
-                    </a>
-                @endif
-            </div>
+        {{-- Pencarian SKU induk --}}
+        <div class="input-group" style="max-width:340px;flex:1 1 240px">
+            <span class="input-group-text"
+                  style="background:var(--md-surface);border-color:var(--md-outline);border-right:0;border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs)">
+                <i class="bi bi-search" style="color:var(--md-on-surface-variant);font-size:14px"></i>
+            </span>
+            <input type="text" name="search" value="{{ $search ?? '' }}"
+                   class="form-control"
+                   placeholder="Cari SKU induk…"
+                   style="border-color:var(--md-outline);border-left:0;border-right:{{ !empty($search) ? '0' : '' }};font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
+            @if(!empty($search))
+                <a href="{{ route('products.index', array_filter(['store_id' => $storeId, 'hpp_empty' => $hppEmpty ? 1 : null])) }}"
+                   class="input-group-text"
+                   style="background:var(--md-surface);border-color:var(--md-outline);border-left:0;border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;color:var(--md-on-surface-variant);text-decoration:none"
+                   title="Hapus pencarian">
+                    <i class="bi bi-x-lg" style="font-size:12px"></i>
+                </a>
+            @endif
         </div>
 
         {{-- Pemilih toko: harga jual ditampilkan per toko --}}
         @if($stores->isNotEmpty())
-            <div style="min-width:200px">
+            <div class="input-group" style="width:auto">
+                <span class="input-group-text"
+                      style="background:var(--md-surface-container-high);border-color:var(--md-outline);border-right:0;border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs);color:var(--md-on-surface-variant)">
+                    <i class="bi bi-shop" style="font-size:14px"></i>
+                </span>
                 <select name="store_id" class="form-select" onchange="this.form.submit()"
                         title="Pilih toko untuk melihat harga"
-                        style="border-color:var(--md-outline);font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
+                        style="border-color:var(--md-outline);border-left:0;border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;font-size:13.5px;font-weight:500;min-width:180px;background:var(--md-surface);color:var(--md-on-surface)">
                     @foreach($stores as $store)
                         <option value="{{ $store->id }}" @selected($storeId == $store->id)>
                             {{ ucwords($store->name) }}
@@ -213,11 +292,24 @@
             </div>
         @endif
 
-        {{-- Export seluruh listing+varian toko terpilih ke .xlsx --}}
+        {{-- Filter chip: hanya listing yang punya varian ber-HPP belum terisi --}}
+        <label class="btn d-inline-flex align-items-center gap-2 m-0"
+               title="Tampilkan hanya produk yang masih ada HPP kosong (mis. bundling)"
+               style="border:1px solid {{ $hppEmpty ? 'var(--md-primary)' : 'var(--md-outline)' }};
+                      background:{{ $hppEmpty ? 'var(--md-secondary-container)' : 'var(--md-surface)' }};
+                      color:{{ $hppEmpty ? 'var(--md-on-secondary-container)' : 'var(--md-on-surface)' }};
+                      border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:{{ $hppEmpty ? 600 : 400 }}">
+            <input type="checkbox" name="hpp_empty" value="1" onchange="this.form.submit()" @checked($hppEmpty) class="d-none">
+            <i class="bi {{ $hppEmpty ? 'bi-funnel-fill' : 'bi-funnel' }}" style="font-size:13px"></i>
+            HPP belum terisi
+            @if($hppEmpty)<i class="bi bi-check-lg" style="font-size:14px"></i>@endif
+        </label>
+
+        {{-- Export seluruh listing+varian toko terpilih ke .xlsx (aksi → dorong ke kanan) --}}
         <a href="{{ route('products.export', ['store_id' => $storeId]) }}"
-           class="btn d-inline-flex align-items-center gap-2"
+           class="btn d-inline-flex align-items-center gap-2 ms-auto"
            title="Export semua data toko ini ke Excel"
-           style="background:var(--md-secondary-container);color:var(--md-on-secondary-container);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 16px">
+           style="background:var(--md-secondary-container);color:var(--md-on-secondary-container);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500">
             <i class="bi bi-file-earmark-excel" style="font-size:15px"></i>
             Export
         </a>
@@ -258,6 +350,46 @@
                 </button>
             </div>
             <div id="price-history-body" style="padding:12px 8px"></div>
+        </div>
+    </div>
+
+    {{-- Modal isi/ubah HPP (dibuka dari ikon pensil pada kolom HPP detail varian) --}}
+    <div id="hpp-modal"
+         style="display:none;position:fixed;inset:0;z-index:1060;background:rgba(0,0,0,.45);
+                align-items:center;justify-content:center;padding:16px">
+        <div style="background:var(--md-surface);color:var(--md-on-surface);border-radius:var(--md-shape-md,12px);
+                    width:100%;max-width:420px;box-shadow:var(--md-elevation-3,0 8px 24px rgba(0,0,0,.2))">
+            <div class="d-flex align-items-center justify-content-between"
+                 style="padding:16px 20px;border-bottom:1px solid var(--md-outline-variant,var(--md-outline))">
+                <h2 style="font-size:15px;font-weight:600;margin:0">Isi / Ubah HPP</h2>
+                <button type="button" class="btn btn-sm js-hpp-cancel" title="Tutup"
+                        style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:2px 6px">
+                    <i class="bi bi-x-lg" style="font-size:15px"></i>
+                </button>
+            </div>
+            <form id="hpp-form" style="padding:20px">
+                <p class="mb-1" style="font-size:12.5px;color:var(--md-on-surface-variant)">Seller SKU</p>
+                <p id="hpp-sku-label" class="mb-3 fw-medium" style="font-size:14px;color:var(--md-on-surface);word-break:break-all"></p>
+
+                <label for="hpp-input" class="mb-1 d-block" style="font-size:12.5px;color:var(--md-on-surface-variant)">HPP (Rp)</label>
+                <input type="number" id="hpp-input" min="0" step="1" inputmode="numeric"
+                       class="form-control" placeholder="0"
+                       style="border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
+                <p class="mb-0 mt-2" style="font-size:11.5px;color:var(--md-on-surface-variant)">
+                    Isi 0 untuk mengosongkan. Nilai ini tidak akan tertimpa saat sync harian.
+                </p>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="button" class="btn js-hpp-cancel"
+                            style="background:transparent;border:1px solid var(--md-outline);color:var(--md-on-surface);border-radius:var(--md-shape-xs);font-size:13.5px;padding:8px 16px">
+                        Batal
+                    </button>
+                    <button type="submit" id="hpp-save"
+                            style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 20px">
+                        Simpan
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
