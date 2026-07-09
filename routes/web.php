@@ -8,6 +8,7 @@ use App\Http\Controllers\ProductAdNewController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SalesHistoryController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\RoasCalculatorController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -60,6 +61,9 @@ Route::post('/products/hpp', [ProductController::class, 'updateHpp'])
     ->name('products.update-hpp');
 Route::resource('products', ProductController::class)->only(['index']);
 Route::resource('stores', StoreController::class);
+
+Route::get('/roas-calculator', [RoasCalculatorController::class, 'index'])->name('roas-calculator.index');
+Route::get('/roas-calculator/lookup', [RoasCalculatorController::class, 'lookup'])->name('roas-calculator.lookup');
 
 Route::get('/sales-history', [SalesHistoryController::class, 'index'])->name('sales-history.index');
 

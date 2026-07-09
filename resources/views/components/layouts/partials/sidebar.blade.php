@@ -76,6 +76,13 @@
                     'badge'  => 0,
                 ],
                 [
+                    'label'  => 'ROAS Calculator',
+                    'icon'   => 'bi-calculator',
+                    'active' => request()->is('roas-calculator*'),
+                    'href'   => route('roas-calculator.index'),
+                    'badge'  => 0,
+                ],
+                [
                     'label'  => 'Notifikasi',
                     'icon'   => 'bi-bell',
                     'active' => request()->is('notifications*'),
