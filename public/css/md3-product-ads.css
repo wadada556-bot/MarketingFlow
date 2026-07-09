@@ -324,7 +324,12 @@
 .md-table-wrap {
   border: 1px solid var(--md-outline-variant);
   border-radius: var(--md-shape-md);
-  overflow: hidden;
+  /* overflow-x auto, bukan hidden: tabel lebar (mis. Product Ads New dgn kolom
+     Campaign + Biaya/Pesanan) tadinya terpotong DAN mendorong seluruh halaman
+     bergeser horizontal. Sekarang tabelnya sendiri yang menggulir.
+     overflow-y hidden dipertahankan agar border-radius tetap memotong sudut. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .md-table {
   margin: 0; border-collapse: collapse;
@@ -453,6 +458,11 @@
   padding: 20px;
   margin-bottom: 20px;
 }
+/* Satu tinggi untuk SEMUA kontrol di baris filter (input, select, TomSelect,
+   tombol). Sebelumnya masing-masing menghitung tingginya sendiri dari padding
+   + line-height, hasilnya 38 / 39.3 / 34.3 px — baris jadi bergerigi. */
+.md-filter-bar { --md-filter-control-h: 40px; }
+
 .md-filter-bar .form-control,
 .md-filter-bar .form-select {
   border-radius: var(--md-shape-xs) !important;
@@ -461,6 +471,16 @@
   color: var(--md-on-surface) !important;
   font-size: 13.5px; line-height: 20px; padding: 9px 12px;
   box-shadow: none !important;
+  height: var(--md-filter-control-h);
+}
+.md-filter-bar .btn-md-tonal,
+.md-filter-bar .btn-md-outlined {
+  height: var(--md-filter-control-h);
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .md-filter-bar .form-control:focus,
 .md-filter-bar .form-select:focus {
@@ -475,16 +495,51 @@
   margin-bottom: 5px; display: block;
 }
 /* TomSelect within filter bar */
+/* TomSelect menyalin kelas `form-select` dari <select> ke wrapper-nya, lalu
+   tom-select.bootstrap5.css (dimuat SESUDAH file ini lewat @push('styles'))
+   memaksa `.ts-wrapper.form-select{display:flex;height:auto}` — spesifisitas
+   sama, urutan menang. Wrapper jadi flex dan menyisakan ~1.3px di bawah
+   kontrol, membuat kotak Toko duduk lebih tinggi dari input sebelahnya.
+   Karena itu selektor di bawah sengaja dinaikkan spesifisitasnya. */
+.md-filter-bar .ts-wrapper.form-select,
+.md-filter-bar .ts-wrapper.form-control {
+  display: block;
+  /* min-height, BUKAN height: tiap toko yang dipilih menambah chip dan
+     kontrolnya tumbuh ke bawah. Tinggi tetap akan membuat chip meluber
+     keluar kotak dan menimpa tabel. */
+  height: auto;
+  min-height: var(--md-filter-control-h);
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  line-height: 0;
+}
 .md-filter-bar .ts-wrapper .ts-control {
   border-radius: var(--md-shape-xs) !important;
   border: 1px solid var(--md-outline) !important;
   background: var(--md-surface) !important;
   box-shadow: none !important;
   font-size: 13.5px;
+  /* Tanpa ini TomSelect memakai padding bawaannya (~34px) dan kontrolnya
+     lebih pendek dari input di sebelahnya. */
+  min-height: var(--md-filter-control-h);
+  padding: 9px 12px !important;
+  align-items: center;
+}
+/* Chip toko: rapat, dan beri jarak antar baris saat chip membungkus. */
+.md-filter-bar .ts-wrapper .ts-control .item {
+  margin: 0 4px 2px 0;
+  line-height: 20px;
+}
+.md-filter-bar .ts-wrapper .ts-control > input {
+  margin: 0;
+  line-height: 20px;
+  min-height: 20px;
 }
 .md-filter-bar .ts-wrapper.focus .ts-control {
   border-color: var(--md-primary) !important;
   border-width: 2px !important;
+  padding: 8px 11px !important;   /* kompensasi border +1px agar tak bergeser */
 }
 
 /* ── Misc Utilities ───────────────────────────────────────────── */

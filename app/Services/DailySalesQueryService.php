@@ -125,6 +125,58 @@ class DailySalesQueryService
     }
 
     /**
+     * Penjualan per periode untuk daftar SKU varian yang SUDAH PASTI.
+     *
+     * Beda dari getForParentSkus(): di sini pemanggil sudah tahu SKU persisnya
+     * (dari tiktok_listing_skus), jadi tak perlu tebak-prefix lewat SkuMatch —
+     * cukup `WHERE sku_variant IN (...)`. Dipakai menu Product Ads New, yang
+     * berpatok product_id TikTok, bukan parent_sku.
+     *
+     * $jubelioStoreId membatasi ke toko tempat iklan berjalan (== orders.store_id).
+     * Null = semua toko.
+     *
+     * @param  string[]  $skus
+     * @return array<string, array<string, int>>  [period][sku] => qty
+     */
+    public function getForSkus(array $skus, ?int $jubelioStoreId = null, int $channelId = 131076): array
+    {
+        $empty = array_fill_keys(self::PERIODS, []);
+        if (empty($skus)) {
+            return $empty;
+        }
+
+        $today  = Carbon::today();
+        $ranges = [
+            'today'     => [$today, $today],
+            'yesterday' => [$today->copy()->subDay(), $today->copy()->subDay()],
+            '7d'        => [$today->copy()->subDays(6), $today],
+            '30d'       => [$today->copy()->subDays(29), $today],
+            '90d'       => [$today->copy()->subDays(89), $today],
+        ];
+
+        $rows = DB::table('orders')
+            ->where('channel_id', $channelId)
+            ->when($jubelioStoreId, fn ($q) => $q->where('store_id', $jubelioStoreId))
+            ->where('sales_date', '>=', $today->copy()->subDays(89)->toDateString())
+            ->whereIn('sku_variant', $skus)
+            ->selectRaw('sku_variant AS sku, sales_date, SUM(qty) AS qty')
+            ->groupBy('sku_variant', 'sales_date')
+            ->get();
+
+        $out = $empty;
+        foreach ($rows as $row) {
+            $date = Carbon::parse($row->sales_date);
+            foreach ($ranges as $period => [$from, $to]) {
+                if ($date->betweenIncluded($from, $to)) {
+                    $out[$period][$row->sku] = ($out[$period][$row->sku] ?? 0) + (int) $row->qty;
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Bersihkan nama toko dari prefix channel & suffix (TTS) — sama dengan
      * regex di resources/views/sales-history/index.blade.php.
      */

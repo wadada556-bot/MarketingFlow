@@ -72,13 +72,13 @@
                     @php $thStyle = 'font-size:11px;font-weight:500;letter-spacing:.5px;text-transform:uppercase;color:var(--md-on-surface-variant);padding:8px 12px;border-bottom:1px solid var(--md-outline-variant)'; @endphp
                     <th style="{{ $thStyle }}">SKU</th>
                     <th style="{{ $thStyle }};text-align:right">Stok</th>
+                    <th style="{{ $thStyle }};text-align:right">PO</th>
                     <th style="{{ $thStyle }};text-align:right">HPP</th>
                     <th style="{{ $thStyle }};text-align:right">Hari Ini</th>
                     <th style="{{ $thStyle }};text-align:right">Kemarin</th>
                     <th style="{{ $thStyle }};text-align:right">7 Hari</th>
                     <th style="{{ $thStyle }};text-align:right">30 Hari</th>
                     <th style="{{ $thStyle }};text-align:right">90 Hari</th>
-                    <th style="{{ $thStyle }};text-align:right">PO</th>
                 </tr>
             </thead>
             <tbody>
@@ -117,6 +117,11 @@
                             <span style="color:var(--md-outline);font-size:13px">–</span>
                         @endif
                     </td>
+                    <td style="padding:8px 12px;text-align:right;font-size:13px;
+                        font-weight:{{ $poQty > 0 ? '500' : '400' }};
+                        color:{{ $poQty === null ? 'var(--md-outline)' : ($poQty === 0 ? 'var(--md-on-surface-variant)' : 'var(--md-primary)') }}">
+                        {{ $poQty === null ? '–' : number_format($poQty) }}
+                    </td>
                     <td style="padding:8px 12px;text-align:right;font-size:12px;
                         color:{{ $hppVal > 0 ? 'var(--md-on-surface-variant)' : 'var(--md-outline)' }}">
                         {{ $hppVal > 0 ? 'Rp '.number_format($hppVal, 0, ',', '.') : '–' }}
@@ -128,11 +133,6 @@
                         {{ $val === null ? '–' : number_format($val) }}
                     </td>
                     @endforeach
-                    <td style="padding:8px 12px;text-align:right;font-size:13px;
-                        font-weight:{{ $poQty > 0 ? '500' : '400' }};
-                        color:{{ $poQty === null ? 'var(--md-outline)' : ($poQty === 0 ? 'var(--md-on-surface-variant)' : 'var(--md-primary)') }}">
-                        {{ $poQty === null ? '–' : number_format($poQty) }}
-                    </td>
                 </tr>
                 @endforeach
             </tbody>
@@ -141,6 +141,10 @@
                     <td style="font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:8px 12px;color:var(--md-on-surface-variant)">Total</td>
                     <td style="padding:8px 12px;text-align:right">
                         <span class="md-chip {{ $worstChipClass }}" style="font-size:12px;font-weight:600">{{ number_format($totalStock) }}</span>
+                    </td>
+                    <td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:600;
+                        color:{{ $totalPo === 0 ? 'var(--md-on-surface-variant)' : 'var(--md-primary)' }}">
+                        {{ number_format($totalPo) }}
                     </td>
                     <td style="padding:8px 12px;text-align:right;font-size:12px;color:var(--md-outline)">–</td>
                     @foreach([
@@ -155,10 +159,6 @@
                         {{ number_format($tot) }}
                     </td>
                     @endforeach
-                    <td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:600;
-                        color:{{ $totalPo === 0 ? 'var(--md-on-surface-variant)' : 'var(--md-primary)' }}">
-                        {{ number_format($totalPo) }}
-                    </td>
                 </tr>
             </tfoot>
         </table>

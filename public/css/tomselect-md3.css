@@ -7,7 +7,33 @@
     font-size: 13.5px !important;
     padding: 7px 10px !important;
 }
-.ts-wrapper.focus .ts-control {
+/*
+ * TomSelect menyalin kelas Bootstrap `form-select`/`form-control` dari <select>
+ * ke `.ts-wrapper`. tom-select.bootstrap5.min.css (CDN) lalu punya:
+ *   .ts-wrapper.form-select .ts-control { border: none !important }
+ *   .ts-wrapper.form-select:not(.disabled) .ts-control { background: transparent !important }
+ * Spesifisitas keduanya (3–4 kelas) menang atas aturan generik di atas, dan
+ * file bootstrap5 itu dimuat SEBELUM file ini — jadi bukan cuma kalah
+ * spesifisitas, kalaupun seri, urutan juga kalah. Akibatnya kotak select
+ * (mis. filter Toko) tampil tanpa border/background — cuma teks placeholder
+ * mengambang. File ini SENGAJA dimuat PALING AKHIR di layout supaya baris di
+ * bawah ini menang tie-break urutan; specificity-nya disamakan/dilebihkan
+ * agar menang juga saat tidak seri.
+ */
+.ts-wrapper.form-select .ts-control,
+.ts-wrapper.form-control .ts-control,
+.ts-wrapper.form-select:not(.disabled) .ts-control,
+.ts-wrapper.form-control:not(.disabled) .ts-control {
+    border-radius: var(--md-shape-xs) !important;
+    border: 1px solid var(--md-outline) !important;
+    background: var(--md-surface) !important;
+    box-shadow: none !important;
+    font-size: 13.5px !important;
+    padding: 7px 10px !important;
+}
+.ts-wrapper.focus .ts-control,
+.ts-wrapper.form-select.focus .ts-control,
+.ts-wrapper.form-control.focus .ts-control {
     border-color: var(--md-primary) !important;
     border-width: 2px !important;
     box-shadow: none !important;

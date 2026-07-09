@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProductAdController;
 use App\Http\Controllers\ProductAdLogController;
+use App\Http\Controllers\ProductAdNewController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SalesHistoryController;
 use App\Http\Controllers\StoreController;
@@ -32,6 +33,23 @@ Route::get('product-ads/{product_ad}/stock-detail', [ProductAdController::class,
     ->name('product-ads.stock-detail');
 Route::resource('product-ads', ProductAdController::class);
 Route::resource('product-ad-logs', ProductAdLogController::class);
+
+// ── Product Ads New (ads + ad_weekly_performances + ad_logs) ──
+Route::prefix('product-ads-new')->name('product-ads-new.')->group(function () {
+    Route::get('/', [ProductAdNewController::class, 'index'])->name('index');
+
+    Route::get('{ad}/variants', [ProductAdNewController::class, 'variants'])->name('variants');
+    Route::get('{ad}/logs', [ProductAdNewController::class, 'logs'])->name('logs');
+    Route::post('{ad}/logs', [ProductAdNewController::class, 'storeLog'])->name('logs.store');
+    Route::patch('{ad}/toggle-status', [ProductAdNewController::class, 'toggleStatus'])->name('toggle-status');
+    Route::patch('{ad}/mark-success', [ProductAdNewController::class, 'markSuccess'])->name('mark-success');
+    Route::patch('{ad}/mark-fail', [ProductAdNewController::class, 'markFail'])->name('mark-fail');
+    Route::patch('{ad}/extend', [ProductAdNewController::class, 'extend'])->name('extend');
+});
+Route::put('ad-logs/{adLog}', [ProductAdNewController::class, 'updateLog'])
+    ->name('ad-logs.update');
+Route::delete('ad-logs/{adLog}', [ProductAdNewController::class, 'destroyLog'])
+    ->name('ad-logs.destroy');
 Route::get('/products/variants', [ProductController::class, 'variants'])
     ->name('products.variants');
 Route::get('/products/price-history', [ProductController::class, 'priceHistory'])

@@ -41,8 +41,17 @@
                 [
                     'label'  => 'Product Ads',
                     'icon'   => 'bi-megaphone',
-                    'active' => request()->is('product-ads*'),
+                    // Jangan pakai 'product-ads*' — pola itu juga cocok dengan
+                    // /product-ads-new, sehingga dua menu menyala bersamaan.
+                    'active' => request()->is('product-ads') || request()->is('product-ads/*'),
                     'href'   => route('product-ads.index'),
+                    'badge'  => 0,
+                ],
+                [
+                    'label'  => 'Product Ads New',
+                    'icon'   => 'bi-bullseye',
+                    'active' => request()->is('product-ads-new*'),
+                    'href'   => route('product-ads-new.index'),
                     'badge'  => 0,
                 ],
                 [
