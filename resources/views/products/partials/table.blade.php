@@ -58,7 +58,13 @@
                         {!! $fmtRange($m->retail_min ?? null, $m->retail_max ?? null) !!}
                     </td>
                     <td style="font-size:13.5px;color:var(--md-on-surface);white-space:nowrap">
-                        {!! $fmtRange($m->promo_min ?? null, $m->promo_max ?? null) !!}
+                        <span class="js-promo-range">{!! $fmtRange($m->promo_min ?? null, $m->promo_max ?? null) !!}</span>
+                        <button type="button" class="js-bulk-price-edit"
+                                data-product-id="{{ $row->product_id }}"
+                                title="Ubah harga promo semua varian produk ini"
+                                style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:0 2px;margin-left:4px;cursor:pointer">
+                            <i class="bi bi-pencil" style="font-size:12px"></i>
+                        </button>
                     </td>
                     <td class="text-center">
                         <a href="{{ route('product-ads.index', ['create_sku' => $m->primary_parent ?? '']) }}"

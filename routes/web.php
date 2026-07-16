@@ -59,6 +59,10 @@ Route::get('/products/export', [ProductController::class, 'export'])
     ->name('products.export');
 Route::post('/products/hpp', [ProductController::class, 'updateHpp'])
     ->name('products.update-hpp');
+Route::post('/products/price', [ProductController::class, 'updatePrice'])
+    ->name('products.update-price');
+Route::post('/products/price/bulk', [ProductController::class, 'bulkUpdatePrice'])
+    ->name('products.bulk-update-price');
 Route::resource('products', ProductController::class)->only(['index']);
 Route::resource('stores', StoreController::class);
 

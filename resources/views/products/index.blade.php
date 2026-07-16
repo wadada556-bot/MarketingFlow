@@ -16,6 +16,8 @@
     const VARIANTS_URL      = @json(route('products.variants'));
     const PRICE_HISTORY_URL = @json(route('products.price-history'));
     const UPDATE_HPP_URL    = @json(route('products.update-hpp'));
+    const UPDATE_PRICE_URL  = @json(route('products.update-price'));
+    const BULK_PRICE_URL    = @json(route('products.bulk-update-price'));
     const STORE_ID          = @json($storeId);
     const HPP_EMPTY         = @json($hppEmpty);
     const CSRF              = document.querySelector('meta[name="csrf-token"]').content;
@@ -54,7 +56,15 @@
                     </button>
                 </td>
                 <td class="text-end" style="font-size:13px">${rupiah(v.retail)}</td>
-                <td class="text-end" style="font-size:13px">${rupiah(v.promo)}</td>
+                <td class="text-end" style="font-size:13px;white-space:nowrap">
+                    <span class="js-promo-val">${rupiah(v.promo)}</span>
+                    <button type="button" class="js-price-edit"
+                            data-sku="${encodeURIComponent(v.sku)}" data-promo="${v.promo ?? 0}"
+                            title="Ubah harga promo"
+                            style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:0 2px;margin-left:4px;cursor:pointer">
+                        <i class="bi bi-pencil" style="font-size:12px"></i>
+                    </button>
+                </td>
                 <td class="text-center">
                     <button type="button" class="btn btn-sm js-price-history d-inline-flex align-items-center gap-1"
                             data-sku="${encodeURIComponent(v.sku)}"
@@ -219,6 +229,90 @@
         })
         .catch(() => { alert('Gagal menyimpan HPP. Coba lagi.'); })
         .finally(() => { hppSave.disabled = false; });
+    });
+
+    // ── Ubah harga promo (satu SKU atau bulk per product_id) ────────────────
+    const priceOverlay = document.getElementById('price-modal');
+    const priceForm    = document.getElementById('price-form');
+    const priceInput   = document.getElementById('price-input');
+    const priceLabel   = document.getElementById('price-context-label');
+    const priceSave    = document.getElementById('price-save');
+    let   priceMode     = null;   // 'single' | 'bulk'
+    let   priceTarget   = null;   // button yg memicu modal
+
+    function closePrice() { priceOverlay.style.display = 'none'; priceMode = null; priceTarget = null; }
+    priceOverlay.addEventListener('click', (e) => { if (e.target === priceOverlay || e.target.closest('.js-price-cancel')) closePrice(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && priceOverlay.style.display === 'flex') closePrice(); });
+
+    document.addEventListener('click', function (e) {
+        const single = e.target.closest('.js-price-edit');
+        if (single) {
+            priceMode = 'single'; priceTarget = single;
+            priceLabel.textContent = 'SKU: ' + decodeURIComponent(single.dataset.sku);
+            priceInput.value = Number(single.dataset.promo) > 0 ? single.dataset.promo : '';
+            priceOverlay.style.display = 'flex';
+            setTimeout(() => priceInput.focus(), 40);
+            return;
+        }
+        const bulk = e.target.closest('.js-bulk-price-edit');
+        if (bulk) {
+            priceMode = 'bulk'; priceTarget = bulk;
+            priceLabel.textContent = 'Semua varian pada Product ID ' + bulk.dataset.productId;
+            priceInput.value = '';
+            priceOverlay.style.display = 'flex';
+            setTimeout(() => priceInput.focus(), 40);
+        }
+    });
+
+    priceForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!priceTarget) return;
+        const val = Math.max(0, Math.floor(Number(priceInput.value) || 0));
+        priceSave.disabled = true;
+
+        if (priceMode === 'single') {
+            const sku = decodeURIComponent(priceTarget.dataset.sku);
+            fetch(UPDATE_PRICE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                body: JSON.stringify({ sku_code: sku, store_id: STORE_ID, promotion_price: val }),
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(r))
+            .then(d => {
+                const cell = priceTarget.closest('td');
+                cell.querySelector('.js-promo-val').innerHTML = rupiah(d.promotion_price);
+                priceTarget.dataset.promo = d.promotion_price;
+                closePrice();
+            })
+            .catch(() => { alert('Gagal menyimpan harga promo. Coba lagi.'); })
+            .finally(() => { priceSave.disabled = false; });
+        } else {
+            const productId = priceTarget.dataset.productId;
+            fetch(BULK_PRICE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                body: JSON.stringify({ product_id: productId, store_id: STORE_ID, promotion_price: val }),
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(r))
+            .then(d => {
+                // Patch rentang harga promo di baris produk (katalog).
+                const row = document.querySelector(`.js-catalog-row[data-product-id="${CSS.escape(productId)}"]`);
+                if (row) {
+                    const span = row.querySelector('.js-promo-range');
+                    if (span) span.innerHTML = rupiah(d.promotion_price);
+
+                    // Bila detail varian sudah ter-load, samakan tampilan tiap varian juga.
+                    const detailRow = row.nextElementSibling;
+                    if (detailRow && detailRow.classList.contains('js-detail-row')) {
+                        detailRow.querySelectorAll('.js-promo-val').forEach(span => { span.innerHTML = rupiah(d.promotion_price); });
+                        detailRow.querySelectorAll('.js-price-edit').forEach(btn => { btn.dataset.promo = d.promotion_price; });
+                    }
+                }
+                closePrice();
+            })
+            .catch(() => { alert('Gagal menyimpan harga promo. Coba lagi.'); })
+            .finally(() => { priceSave.disabled = false; });
+        }
     });
 })();
 </script>
@@ -385,6 +479,46 @@
                         Batal
                     </button>
                     <button type="submit" id="hpp-save"
+                            style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 20px">
+                        Simpan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Modal ubah harga promo (satu SKU dari detail varian, atau bulk dari baris produk) --}}
+    <div id="price-modal"
+         style="display:none;position:fixed;inset:0;z-index:1060;background:rgba(0,0,0,.45);
+                align-items:center;justify-content:center;padding:16px">
+        <div style="background:var(--md-surface);color:var(--md-on-surface);border-radius:var(--md-shape-md,12px);
+                    width:100%;max-width:420px;box-shadow:var(--md-elevation-3,0 8px 24px rgba(0,0,0,.2))">
+            <div class="d-flex align-items-center justify-content-between"
+                 style="padding:16px 20px;border-bottom:1px solid var(--md-outline-variant,var(--md-outline))">
+                <h2 style="font-size:15px;font-weight:600;margin:0">Ubah Harga Promo</h2>
+                <button type="button" class="btn btn-sm js-price-cancel" title="Tutup"
+                        style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:2px 6px">
+                    <i class="bi bi-x-lg" style="font-size:15px"></i>
+                </button>
+            </div>
+            <form id="price-form" style="padding:20px">
+                <p class="mb-1" style="font-size:12.5px;color:var(--md-on-surface-variant)">Berlaku untuk</p>
+                <p id="price-context-label" class="mb-3 fw-medium" style="font-size:14px;color:var(--md-on-surface);word-break:break-all"></p>
+
+                <label for="price-input" class="mb-1 d-block" style="font-size:12.5px;color:var(--md-on-surface-variant)">Harga Promo Baru (Rp)</label>
+                <input type="number" id="price-input" min="0" step="1" inputmode="numeric"
+                       class="form-control" placeholder="0"
+                       style="border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
+                <p class="mb-0 mt-2" style="font-size:11.5px;color:var(--md-on-surface-variant)">
+                    Nilai ini akan tertimpa lagi saat sync harga toko harian berjalan.
+                </p>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="button" class="btn js-price-cancel"
+                            style="background:transparent;border:1px solid var(--md-outline);color:var(--md-on-surface);border-radius:var(--md-shape-xs);font-size:13.5px;padding:8px 16px">
+                        Batal
+                    </button>
+                    <button type="submit" id="price-save"
                             style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 20px">
                         Simpan
                     </button>

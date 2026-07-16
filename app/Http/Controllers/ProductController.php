@@ -260,6 +260,91 @@ class ProductController extends Controller
     }
 
     /**
+     * Ubah harga promo satu SKU pada satu toko. Baris store_sku_prices akan
+     * tertimpa saat sync harian berikutnya (beda dgn HPP) — ini untuk koreksi
+     * cepat di antara jadwal sync.
+     */
+    public function updatePrice(Request $request)
+    {
+        $data = $request->validate([
+            'sku_code'         => ['required', 'string', 'exists:jubelio_inventory,sku_code'],
+            'store_id'         => ['required', 'integer', 'exists:stores,id'],
+            'promotion_price'  => ['required', 'integer', 'min:0'],
+        ]);
+
+        $this->upsertPrice($data['store_id'], $data['sku_code'], $data['promotion_price']);
+
+        return response()->json([
+            'ok'               => true,
+            'sku_code'         => $data['sku_code'],
+            'promotion_price'  => (int) $data['promotion_price'],
+        ]);
+    }
+
+    /**
+     * Ubah harga promo SEMUA varian (sku_code) pada satu listing (product_id)
+     * untuk toko terpilih sekaligus. Dipakai dari baris produk di katalog.
+     */
+    public function bulkUpdatePrice(Request $request)
+    {
+        $data = $request->validate([
+            'product_id'       => ['required', 'string'],
+            'store_id'         => ['required', 'integer', 'exists:stores,id'],
+            'promotion_price'  => ['required', 'integer', 'min:0'],
+        ]);
+
+        $skuCodes = DB::table('tiktok_listings as tl')
+            ->join('tiktok_listing_skus as ts', function ($x) use ($data) {
+                $x->on('ts.listing_id', '=', 'tl.id')->where('ts.store_id', $data['store_id']);
+            })
+            ->where('tl.store_id', $data['store_id'])
+            ->where('tl.product_id', $data['product_id'])
+            ->pluck('ts.sku_code');
+
+        if ($skuCodes->isEmpty()) {
+            return response()->json(['ok' => false, 'message' => 'Tidak ada varian ditemukan untuk product_id ini.'], 404);
+        }
+
+        foreach ($skuCodes as $skuCode) {
+            $this->upsertPrice($data['store_id'], $skuCode, $data['promotion_price']);
+        }
+
+        return response()->json([
+            'ok'               => true,
+            'product_id'       => $data['product_id'],
+            'count'            => $skuCodes->count(),
+            'promotion_price'  => (int) $data['promotion_price'],
+        ]);
+    }
+
+    /**
+     * Set promotion_price untuk (store_id, sku_code); buat baris store_sku_prices
+     * baru (retail_price=0, match_sku diturunkan dari sku_code) bila belum ada.
+     */
+    private function upsertPrice(int $storeId, string $skuCode, int $promotionPrice): void
+    {
+        $now = now();
+
+        $updated = DB::table('store_sku_prices')
+            ->where('store_id', $storeId)
+            ->where('sku_code', $skuCode)
+            ->update(['promotion_price' => $promotionPrice, 'synced_at' => $now, 'updated_at' => $now]);
+
+        if (! $updated) {
+            DB::table('store_sku_prices')->insert([
+                'store_id'         => $storeId,
+                'sku_code'         => $skuCode,
+                'match_sku'        => strtoupper(preg_replace('/-\d+$/', '', $skuCode)),
+                'retail_price'     => 0,
+                'promotion_price'  => $promotionPrice,
+                'synced_at'        => $now,
+                'created_at'       => $now,
+                'updated_at'       => $now,
+            ]);
+        }
+    }
+
+    /**
      * Kunci varian dari sku_code (BUKAN jubelio_inventory.parent_sku yg tak konsisten).
      * Pisahkan RUN DIGIT TERAKHIR sbg nomor: base = sisa sebelum+sesudah nomor (huruf
      * setelah nomor dipertahankan → ZQ-1 vs ZQ-1A beda base). Tanpa nomor (ZL-RANDOM)
