@@ -4,11 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Laravel 12 / PHP 8.2 internal marketing-ops dashboard ("marketing-flow") for managing TikTok Shop ads,
-product catalog/pricing, orders, and sales reporting across multiple TikTok stores. Server-rendered
-Blade views (no SPA framework) with vanilla JS for interactivity (fetch + custom modal overlays — no
-Bootstrap JS component, no Alpine). Bootstrap Icons (`bi bi-*`) for icons, Tailwind v4 + a custom
-Material Design 3 token layer for styling.
+Laravel 12 / PHP 8.2 internal marketing-ops dashboard ("marketing-flow") for managing TikTok Shop
+product catalog/pricing and stores across multiple TikTok stores. Server-rendered Blade views (no SPA
+framework) with vanilla JS for interactivity (fetch + custom modal overlays — no Bootstrap JS
+component, no Alpine). Bootstrap Icons (`bi bi-*`) for icons, Tailwind v4 + a custom Material Design 3
+token layer for styling.
+
+Current menu surface (2026-07-17): **Dashboard** (stock alerts only — GMV/ROAS/chart widgets, store
+ranking, and ads performance were removed from the dashboard), **Products**, **Stores**, and
+**Notifikasi**. The Product Ads, Product Ads New, History Penjualan, and ROAS Calculator menus/routes/
+controllers/views were deleted (see `git log` around commits `ffeb3f1`/`c58cf04`) — do not reintroduce
+routes or links to `product-ads`, `product-ads-new`, `sales-history`, or `roas-calculator` unless
+explicitly asked to bring the feature back.
 
 Data mostly originates from **external systems synced by scheduled jobs**, not user input:
 - **Jubelio** (ERP/warehouse) — stock, HPP (cost price), PO quantities → `jubelio_inventory`.
@@ -89,13 +96,14 @@ No JS test runner or JS linter is configured — `package.json` only builds asse
     (`trg_store_sku_prices_history`) into `store_sku_price_histories` — the app never writes history
     rows itself, just reads them back for the "Histori" UI action.
 
-- **Ads** (`ads`, `ad_weekly_performances`, `ad_logs`) — `ads` is one stable row per
-  `(store_id, product_id)`, created by the external importer; `status`/`testing_status`/
-  `testing_started_at`/`testing_completed_at` are the only columns this app writes, and the importer
-  never touches them. Weekly metrics live in the child table `ad_weekly_performances`; free-text notes
-  in `ad_logs`. There is an older `ProductAdController` (`product_ads` table) — treat that as the
-  legacy predecessor of `ProductAdNewController`'s `ads`/`ad_weekly_performances` design; new ad
-  features go in the new tables.
+- **Ads** — the external importer still writes `ads`, `ad_weekly_performances`, `ad_logs`, and the
+  legacy `product_ads`/`product_ad_store`/`product_ad_logs` tables (no schema changes were made when
+  the Product Ads / Product Ads New menus were removed). This app no longer has any controller/route
+  surface for ads management — `ProductAdController`, `ProductAdNewController`, `ProductAdLogController`,
+  and `ProductAdService` were deleted. The `ProductAd`, `ProductAdLog`, `ProductAdStore`, and
+  `DailyProductAd` **models** were kept because `DashboardController::buildStockAlerts()` and the
+  `NotifyStockCheck` command still read `product_ads`/`product_ad_store` to find which parent SKUs are
+  actively advertised (and therefore worth a stock alert) and which stores sell them.
 
 - **Orders** (`orders`) — one row per order line item, synced incrementally from Jubelio's `/orders/`
   endpoint keyed on `last_modified` (so only changed orders are re-fetched). `orders:sync` used to run
@@ -104,8 +112,8 @@ No JS test runner or JS linter is configured — `package.json` only builds asse
 
 ### Controllers bypass Eloquent for reporting/listing queries
 
-Most read-heavy endpoints (`ProductController::index/variants`, `ProductAdNewController::index`, dashboard
-queries) use `DB::table(...)` query builder with manual joins/aggregates rather than Eloquent relations —
+Most read-heavy endpoints (`ProductController::index/variants`, dashboard stock-alert queries) use
+`DB::table(...)`/query builder with manual joins/aggregates rather than Eloquent relations —
 this is deliberate for query control over multi-table joins across `tiktok_listings` /
 `tiktok_listing_skus` / `jubelio_inventory` / `store_sku_prices`. Eloquent models exist for most tables
 (`app/Models/*.php`) but are mainly used for simple writes/relations, not the heavy list queries. Follow
