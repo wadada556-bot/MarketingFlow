@@ -124,7 +124,7 @@
 .products-subrow td {
     padding: 4px 12px 10px;
     border-top: none;
-    background: var(--md-surface-container-low);
+    background: rgba(33, 150, 243, .06);
 }
 .products-subrow-inner {
     display: flex;
@@ -138,7 +138,7 @@
     border-top-color: var(--md-primary);
 }
 .products-subrow:hover td {
-    background: var(--md-surface-container);
+    background: rgba(33, 150, 243, .12);
 }
 .products-subrow-count {
     font-size: 13.5px;
