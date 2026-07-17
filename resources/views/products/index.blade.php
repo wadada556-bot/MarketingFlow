@@ -45,15 +45,14 @@
         // tak punya sisa/kekurangan ruang utk didistribusikan ulang (itu yg
         // sebelumnya bikin kolom Stok/PO/HPP/Harga Jual melenceng dari baris induk
         // di lebar layar yg berbeda dari saat pertama kali diuji).
-        const w = cols || {varian:240, productId:170, skuId:170, stok:110, po:100, hpp:170, harga:220, aksi:110};
-        const total = w.varian + w.productId + w.skuId + w.stok + w.po + w.hpp + w.harga + w.aksi;
+        const w = cols || {varian:240, skuId:170, stok:110, po:100, hpp:170, harga:220, aksi:110};
+        const total = w.varian + w.skuId + w.stok + w.po + w.hpp + w.harga + w.aksi;
         const rows = variants.map(v => `
             <tr>
                 <td style="font-size:13px">
                     <p class="mb-0 fw-medium" style="color:var(--md-on-surface)">${v.label ?? v.sku}</p>
                     <p class="mb-0" style="font-size:11.5px;color:var(--md-on-surface-variant)">${v.sku}</p>
                 </td>
-                <td style="font-size:12.5px;color:var(--md-on-surface-variant)">${dash(v.product_id)}</td>
                 <td style="font-size:12.5px;color:var(--md-on-surface-variant)">${dash(v.sku_id)}</td>
                 <td class="text-end" style="font-size:13px">${num(v.stok)}</td>
                 <td class="text-end" style="font-size:13px">${num(v.po)}</td>
@@ -84,13 +83,13 @@
             <table class="table align-middle mb-0" style="table-layout:fixed;width:${total}px">
               <colgroup>
                 <col style="width:${w.varian}px">
-                <col style="width:${w.productId}px"><col style="width:${w.skuId}px">
+                <col style="width:${w.skuId}px">
                 <col style="width:${w.stok}px"><col style="width:${w.po}px">
                 <col style="width:${w.hpp}px"><col style="width:${w.harga}px">
                 <col style="width:${w.aksi}px">
               </colgroup>
               <thead><tr style="color:var(--md-on-surface-variant);font-size:12px">
-                <th>Varian</th><th>Product ID</th><th>SKU ID</th>
+                <th>Varian</th><th>SKU ID</th>
                 <th class="text-end">Stok</th><th class="text-end">PO</th>
                 <th class="text-end">HPP</th><th class="text-end">Harga Jual</th>
                 <th class="text-center">Aksi</th>
@@ -102,12 +101,12 @@
     // Hitung lebar tiap kolom tabel detail dari geometri NYATA baris induk
     // (bukan CSS auto-layout, yg terbukti tak stabil lintas lebar layar).
     // Stok/PO/HPP/Harga Jual = persis sama dgn kolom yg sama di baris induk.
-    // Leading (Varian+Product ID+SKU ID) = SISA ruang persis dari ujung kiri
-    // (indentLeft, tempat tabel detail mulai) sampai ujung kanan kolom Harga
-    // Jual baris induk (target kanan) dikurangi Stok/PO/HPP/Harga/Aksi —
-    // jadi tabel detail otomatis menempel pas di KEDUA ujung sekaligus (kiri:
-    // Varian mulai sejajar dgn indent di bawah Produk; kanan: Aksi berakhir
-    // persis di ujung Harga Jual) dari SATU perhitungan geometri, tanpa perlu
+    // Leading (Varian+SKU ID) = SISA ruang persis dari ujung kiri (indentLeft,
+    // tempat tabel detail mulai) sampai ujung kanan kolom Harga Jual baris
+    // induk (target kanan) dikurangi Stok/PO/HPP/Harga/Aksi — jadi tabel
+    // detail otomatis menempel pas di KEDUA ujung sekaligus (kiri: Varian
+    // mulai sejajar dgn indent di bawah Produk; kanan: Aksi berakhir persis
+    // di ujung Harga Jual) dari SATU perhitungan geometri, tanpa perlu
     // dorongan margin terpisah. (Percobaan sebelumnya yg men-cap leading lalu
     // mendorongnya via margin-left:auto menyisakan celah kosong lebar di kiri
     // — regresi yg diperbaiki di sini.)
@@ -132,14 +131,14 @@
         let leading = Math.round(targetRight - indentLeft - fixedSum);
         leading = Math.max(80, leading);
 
-        let productId = 170, skuId = 170, varian = leading - productId - skuId;
+        let skuId = 170, varian = leading - skuId;
         if (varian < 40) {
             // Leading kepepet (kolom Produk baris induk sempit) — sisakan
-            // Varian min 40px, sisanya dibagi rata ke Product ID/SKU ID.
+            // Varian min 40px, sisanya ke SKU ID.
             varian = 40;
-            productId = skuId = Math.max(30, Math.round((leading - varian) / 2));
+            skuId = Math.max(30, leading - varian);
         }
-        return {varian, productId, skuId, stok, po, hpp, harga, aksi};
+        return {varian, skuId, stok, po, hpp, harga, aksi};
     }
 
     document.addEventListener('click', function (e) {
