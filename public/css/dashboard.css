@@ -34,7 +34,25 @@
     background: var(--md-surface-container-lowest);
     border: 1px solid var(--md-outline-variant);
     border-radius: var(--md-shape-lg);
-    padding: 20px;
+    padding: 16px;
+}
+/* Header + filter chips Peringatan Stok — terkunci di atas saat scroll */
+.stock-sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: -16px -16px 14px;
+    padding: 12px 16px 14px;
+    background: var(--md-surface-container-lowest);
+    border-radius: var(--md-shape-lg) var(--md-shape-lg) 0 0;
+    border-bottom: 1px solid var(--md-outline-variant);
+}
+
+/* Halaman Peringatan Stok: manfaatkan lebar penuh, margin/padding tipis,
+   judul sejajar dengan header "Marketing Flow" di sidebar */
+.page-dashboard .page-content {
+    max-width: none;
+    padding: 0 20px 20px;
 }
 .dash-section-title {
     font-size: 15px;
@@ -395,79 +413,19 @@
 #store-ranking::-webkit-scrollbar-track { background: transparent; }
 #store-ranking::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 4px; }
 
-/* ── Stock alerts offcanvas (slide-in from left) ───────── */
-.stock-panel-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.32);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity .25s ease;
-    z-index: 1200;
-}
-.stock-panel-overlay.open { opacity: 1; visibility: visible; pointer-events: auto; }
-
-.stock-panel {
-    position: fixed;
-    top: 0; left: 0; bottom: 0;
-    width: min(440px, 90vw);
-    background: var(--md-surface-container-lowest);
-    border-right: 1px solid var(--md-outline-variant);
-    box-shadow: 4px 0 24px rgba(0,0,0,.16);
-    transform: translateX(-100%);
-    transition: transform .28s cubic-bezier(.4,0,.2,1);
-    z-index: 1201;
-    display: flex;
-    flex-direction: column;
-}
-.stock-panel.open { transform: translateX(0); }
-
-.stock-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 18px 20px;
-    border-bottom: 1px solid var(--md-outline-variant);
-    flex-shrink: 0;
-}
-.stock-panel-close {
-    width: 34px; height: 34px;
-    border-radius: var(--md-shape-full);
-    border: none;
-    background: transparent;
-    color: var(--md-on-surface-variant);
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-    transition: background .12s;
-}
-.stock-panel-close:hover { background: var(--md-surface-container-high); color: var(--md-on-surface); }
-
-.stock-panel-body {
-    padding: 16px 20px 24px;
-    overflow-y: auto;
-    flex: 1;
+/* ── Stock alerts (inline list di halaman Peringatan Stok) ── */
+.stock-list-body {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--md-outline-variant) transparent;
 }
-.stock-panel-body::-webkit-scrollbar { width: 6px; }
-.stock-panel-body::-webkit-scrollbar-track { background: transparent; }
-.stock-panel-body::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 4px; }
 
-/* Filter chips di panel stok */
-.stock-panel-filters {
+/* Filter chips daftar stok */
+.stock-filter-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 12px 20px 14px;
-    border-bottom: 1px solid var(--md-outline-variant);
-    flex-shrink: 0;
+    margin-bottom: 14px;
 }
 .stock-filter-chip {
     display: inline-flex;

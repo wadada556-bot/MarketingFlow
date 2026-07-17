@@ -9,14 +9,6 @@
 
 @section('content')
 
-{{-- ── Page Header ─────────────────────────────────────── --}}
-<div class="md-page-header">
-    <div>
-        <h1>Peringatan Stok</h1>
-        <p class="subtitle">Peringatan stok produk</p>
-    </div>
-</div>
-
 {{-- Stock Alerts (di-load lazy via AJAX → dashboard.stock-alerts) --}}
 <div class="dash-section-card">
     <div id="stock-card-lazy">
@@ -33,9 +25,6 @@
         </div>
     </div>
 </div>
-
-{{-- ── Stock Alerts Offcanvas (di-inject via AJAX → dashboard.stock-alerts) ── --}}
-<div id="stock-panel-lazy"></div>
 
 @endsection
 

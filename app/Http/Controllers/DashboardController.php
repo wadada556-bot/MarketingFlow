@@ -27,7 +27,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Endpoint AJAX: hitung Peringatan Stok (ERP) lalu kembalikan HTML kartu + panel.
+     * Endpoint AJAX: hitung Peringatan Stok (ERP) lalu kembalikan HTML kartu.
      */
     public function stockAlerts()
     {
@@ -35,7 +35,6 @@ class DashboardController extends Controller
 
         return response()->json([
             'card'  => view('dashboard.partials._stock-card-body', $data)->render(),
-            'panel' => view('dashboard.partials._stock-panel', $data)->render(),
             'count' => $data['stockAlertCount'],
         ]);
     }

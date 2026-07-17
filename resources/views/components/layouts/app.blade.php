@@ -17,7 +17,7 @@
 
         <title>@yield('title') - Marketing Flow</title>
     </head>
-    <body>
+    <body class="page-{{ request()->route()?->getName() ? str_replace('.', '-', request()->route()->getName()) : 'default' }}">
 
         <div id="wrapper">
             @include('components.layouts.partials.sidebar')
