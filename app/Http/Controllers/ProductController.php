@@ -16,9 +16,9 @@ class ProductController extends Controller
     {
         $search   = trim((string) $request->input('search'));
         $hppEmpty = $request->boolean('hpp_empty');
-        $perPage  = (int) $request->input('per_page', 15);
+        $perPage  = (int) $request->input('per_page', 20);
         if (! in_array($perPage, [10, 20, 50, 100], true)) {
-            $perPage = 15;
+            $perPage = 20;
         }
 
         // Toko untuk pemilih harga (harga jual berbeda per toko)
@@ -329,6 +329,79 @@ class ProductController extends Controller
             'ok'               => true,
             'product_id'       => $data['product_id'],
             'count'            => $skuCodes->count(),
+            'promotion_price'  => (int) $data['promotion_price'],
+        ]);
+    }
+
+    /**
+     * Cari varian (sku_code) berdasar potongan seller SKU (bisa lengkap/tidak),
+     * lintas SEMUA toko sekaligus — dipakai oleh popup "Update Harga Massal".
+     * Satu baris hasil = satu (store, product_id, sku_code) beserta harga promo
+     * saat ini, supaya UI bisa kelompokkan per toko/product_id dan tampilkan
+     * pratinjau sebelum commit.
+     */
+    public function bulkPriceSearch(Request $request)
+    {
+        $data = $request->validate([
+            'keyword' => ['required', 'string', 'min:2'],
+        ]);
+        $keyword = trim($data['keyword']);
+
+        $rows = DB::table('tiktok_listing_skus as ts')
+            ->join('tiktok_listings as tl', function ($x) {
+                $x->on('tl.id', '=', 'ts.listing_id')->on('tl.store_id', '=', 'ts.store_id');
+            })
+            ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
+            ->join('stores as s', 's.id', '=', 'ts.store_id')
+            ->leftJoin('store_sku_prices as p', function ($x) {
+                $x->on('p.store_id', '=', 'ts.store_id')->on('p.sku_code', '=', 'ts.sku_code');
+            })
+            ->where(function ($w) use ($keyword) {
+                $w->where('ts.sku_code', 'like', "%{$keyword}%")
+                    ->orWhere('j.parent_sku', 'like', "%{$keyword}%");
+            })
+            ->orderBy('s.name')
+            ->orderBy('tl.product_id')
+            ->orderBy('ts.sku_id')
+            ->get([
+                's.id as store_id', 's.name as store_name',
+                'tl.product_id', 'ts.sku_code', 'j.variation_label',
+                'p.promotion_price',
+            ]);
+
+        return response()->json([
+            'results' => $rows->map(fn ($r) => [
+                'store_id'        => (int) $r->store_id,
+                'store_name'      => $r->store_name,
+                'product_id'      => (string) $r->product_id,
+                'sku_code'        => $r->sku_code,
+                'label'           => $r->variation_label,
+                'promotion_price' => $r->promotion_price !== null ? (int) $r->promotion_price : null,
+            ])->all(),
+        ]);
+    }
+
+    /**
+     * Terapkan satu harga promo baru ke sekumpulan (store_id, sku_code) yang
+     * dipilih user di popup "Update Harga Massal" (bisa lintas toko/produk).
+     * Reuse upsertPrice() yang sama dgn updatePrice()/bulkUpdatePrice().
+     */
+    public function bulkPriceApply(Request $request)
+    {
+        $data = $request->validate([
+            'items'                    => ['required', 'array', 'min:1'],
+            'items.*.store_id'         => ['required', 'integer', 'exists:stores,id'],
+            'items.*.sku_code'         => ['required', 'string', 'exists:jubelio_inventory,sku_code'],
+            'promotion_price'          => ['required', 'integer', 'min:0'],
+        ]);
+
+        foreach ($data['items'] as $item) {
+            $this->upsertPrice((int) $item['store_id'], $item['sku_code'], $data['promotion_price']);
+        }
+
+        return response()->json([
+            'ok'               => true,
+            'count'            => count($data['items']),
             'promotion_price'  => (int) $data['promotion_price'],
         ]);
     }

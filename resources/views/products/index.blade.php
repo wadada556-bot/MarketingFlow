@@ -17,6 +17,8 @@
     const UPDATE_HPP_URL    = @json(route('products.update-hpp'));
     const UPDATE_PRICE_URL  = @json(route('products.update-price'));
     const BULK_PRICE_URL    = @json(route('products.bulk-update-price'));
+    const BULK_SEARCH_URL   = @json(route('products.bulk-price-search'));
+    const BULK_APPLY_URL    = @json(route('products.bulk-price-apply'));
     const STORE_ID          = @json($storeId);
     const HPP_EMPTY         = @json($hppEmpty);
     const CSRF              = document.querySelector('meta[name="csrf-token"]').content;
@@ -427,6 +429,221 @@
             .finally(() => { priceSave.disabled = false; });
         }
     });
+
+    // ── Update harga promo massal (popup) ────────────────────────────────────
+    const bulkOverlay   = document.getElementById('bulk-price-modal');
+    const bulkOpenBtn   = document.getElementById('bulk-price-open');
+    const bulkKeyword   = document.getElementById('bulk-price-keyword');
+    const bulkSearchBtn = document.getElementById('bulk-price-search-btn');
+    const bulkSearchMsg = document.getElementById('bulk-price-search-msg');
+    const bulkResultsEl = document.getElementById('bulk-price-results');
+    const bulkCheckAll  = document.getElementById('bulk-price-check-all');
+    const bulkCountEl   = document.getElementById('bulk-price-count');
+    const bulkPriceIn   = document.getElementById('bulk-price-input');
+    const bulkNextBtn   = document.getElementById('bulk-price-next');
+    const bulkBackBtn   = document.getElementById('bulk-price-back');
+    const bulkConfirmPrice = document.getElementById('bulk-price-confirm-price');
+    const bulkConfirmCount = document.getElementById('bulk-price-confirm-count');
+    const bulkConfirmList  = document.getElementById('bulk-price-confirm-list');
+    const stepSearch = document.getElementById('bulk-price-step-search');
+    const stepSelect = document.getElementById('bulk-price-step-select');
+    const stepConfirm = document.getElementById('bulk-price-step-confirm');
+
+    let bulkResults = [];      // hasil pencarian mentah dari server
+    let bulkChecked = new Set(); // key = `${store_id}|${sku_code}`
+    let bulkStep = 'search';   // 'search' | 'select' | 'confirm'
+    const bulkKey = (r) => `${r.store_id}|${r.sku_code}`;
+
+    // Satu sku_code bisa muncul di beberapa listing (product_id) pada toko yg
+    // sama — checked-state disimpan per (store,sku), jadi harus dedupe di sini
+    // supaya SKU yg sama tak dihitung/dikirim dobel.
+    function bulkSelectedItems() {
+        const seen = new Map();
+        bulkResults.forEach(r => {
+            const key = bulkKey(r);
+            if (bulkChecked.has(key) && !seen.has(key)) seen.set(key, r);
+        });
+        return [...seen.values()];
+    }
+
+    function bulkShowStep(step) {
+        bulkStep = step;
+        stepSearch.style.display  = step === 'search'  ? '' : 'none';
+        stepSelect.style.display  = step === 'select'  ? '' : 'none';
+        stepConfirm.style.display = step === 'confirm' ? '' : 'none';
+        bulkBackBtn.style.display = step === 'search' ? 'none' : '';
+        bulkNextBtn.textContent = step === 'confirm' ? 'Update Sekarang' : 'Lanjut';
+        bulkNextBtn.style.display = step === 'search' ? 'none' : '';
+    }
+
+    function bulkResetAll() {
+        bulkResults = [];
+        bulkChecked = new Set();
+        bulkKeyword.value = '';
+        bulkPriceIn.value = '';
+        bulkSearchMsg.textContent = 'Hasil dicari lintas semua toko. Pilih baris yang ingin diupdate di langkah berikutnya.';
+        bulkResultsEl.innerHTML = '';
+        bulkShowStep('search');
+    }
+
+    function openBulk() {
+        bulkResetAll();
+        bulkOverlay.style.display = 'flex';
+        setTimeout(() => bulkKeyword.focus(), 40);
+    }
+    function closeBulk() { bulkOverlay.style.display = 'none'; }
+
+    bulkOpenBtn.addEventListener('click', openBulk);
+    bulkOverlay.addEventListener('click', (e) => { if (e.target === bulkOverlay || e.target.closest('.js-bulk-price-cancel')) closeBulk(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bulkOverlay.style.display === 'flex') closeBulk(); });
+
+    function runBulkSearch() {
+        const keyword = bulkKeyword.value.trim();
+        if (keyword.length < 2) {
+            bulkSearchMsg.textContent = 'Masukkan minimal 2 karakter.';
+            return;
+        }
+        bulkSearchBtn.disabled = true;
+        bulkSearchMsg.textContent = 'Mencari…';
+        fetch(`${BULK_SEARCH_URL}?keyword=${encodeURIComponent(keyword)}`)
+            .then(r => r.ok ? r.json() : Promise.reject(r))
+            .then(d => {
+                bulkResults = d.results || [];
+                bulkChecked = new Set();
+                if (!bulkResults.length) {
+                    bulkSearchMsg.textContent = 'Tidak ada SKU yang cocok.';
+                    return;
+                }
+                renderBulkResults();
+                bulkShowStep('select');
+            })
+            .catch(() => { bulkSearchMsg.textContent = 'Gagal mencari. Coba lagi.'; })
+            .finally(() => { bulkSearchBtn.disabled = false; });
+    }
+    bulkSearchBtn.addEventListener('click', runBulkSearch);
+    bulkKeyword.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); runBulkSearch(); } });
+
+    function updateBulkCount() {
+        bulkCountEl.textContent = `${bulkChecked.size} dari ${bulkResults.length} SKU dipilih`;
+        bulkCheckAll.checked = bulkResults.length > 0 && bulkChecked.size === bulkResults.length;
+    }
+
+    function renderBulkResults() {
+        // Kelompokkan: toko → product_id → daftar sku.
+        const byStore = new Map();
+        bulkResults.forEach(r => {
+            if (!byStore.has(r.store_id)) byStore.set(r.store_id, { name: r.store_name, byProduct: new Map() });
+            const store = byStore.get(r.store_id);
+            if (!store.byProduct.has(r.product_id)) store.byProduct.set(r.product_id, []);
+            store.byProduct.get(r.product_id).push(r);
+        });
+
+        let html = '';
+        byStore.forEach((store, storeId) => {
+            const storeSkus = [...store.byProduct.values()].flat();
+            html += `<div style="border-bottom:1px solid var(--md-outline-variant,var(--md-outline))">
+                <div class="d-flex align-items-center gap-2 js-bulk-group" data-level="store" data-store="${storeId}"
+                     style="padding:8px 12px;background:var(--md-surface-container-low);font-weight:600;font-size:13px;cursor:pointer">
+                    <input type="checkbox" class="js-bulk-check" data-level="store" data-store="${storeId}">
+                    <i class="bi bi-shop"></i> ${store.name}
+                    <span style="font-weight:400;color:var(--md-on-surface-variant);font-size:12px">(${storeSkus.length} SKU)</span>
+                </div>`;
+            store.byProduct.forEach((skus, productId) => {
+                html += `<div style="padding:6px 12px 6px 28px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--md-on-surface-variant)">
+                    <input type="checkbox" class="js-bulk-check" data-level="product" data-store="${storeId}" data-product="${productId}">
+                    Product ID: <span style="color:var(--md-on-surface)">${productId}</span>
+                    <span>(${skus.length} SKU)</span>
+                </div>`;
+                skus.forEach(sku => {
+                    const key = bulkKey(sku);
+                    html += `<div style="padding:4px 12px 4px 48px;display:flex;align-items:center;gap:8px;font-size:12.5px">
+                        <input type="checkbox" class="js-bulk-check" data-level="sku" data-key="${encodeURIComponent(key)}">
+                        <span style="word-break:break-all">${sku.label ? sku.label + ' — ' : ''}${sku.sku_code}</span>
+                        <span style="margin-left:auto;color:var(--md-on-surface-variant);white-space:nowrap">${rupiah(sku.promotion_price)}</span>
+                    </div>`;
+                });
+            });
+            html += `</div>`;
+        });
+        bulkResultsEl.innerHTML = html;
+        syncBulkCheckboxUi();
+        updateBulkCount();
+    }
+
+    function syncBulkCheckboxUi() {
+        bulkResultsEl.querySelectorAll('.js-bulk-check[data-level="sku"]').forEach(cb => {
+            const key = decodeURIComponent(cb.dataset.key);
+            cb.checked = bulkChecked.has(key);
+        });
+        bulkResultsEl.querySelectorAll('.js-bulk-check[data-level="product"]').forEach(cb => {
+            const storeId = cb.dataset.store, productId = cb.dataset.product;
+            const skus = bulkResults.filter(r => String(r.store_id) === storeId && r.product_id === productId);
+            cb.checked = skus.length > 0 && skus.every(r => bulkChecked.has(bulkKey(r)));
+        });
+        bulkResultsEl.querySelectorAll('.js-bulk-check[data-level="store"]').forEach(cb => {
+            const storeId = cb.dataset.store;
+            const skus = bulkResults.filter(r => String(r.store_id) === storeId);
+            cb.checked = skus.length > 0 && skus.every(r => bulkChecked.has(bulkKey(r)));
+        });
+    }
+
+    bulkResultsEl.addEventListener('change', function (e) {
+        const cb = e.target.closest('.js-bulk-check');
+        if (!cb) return;
+        const level = cb.dataset.level;
+        let affected = [];
+        if (level === 'sku') {
+            affected = [bulkResults.find(r => bulkKey(r) === decodeURIComponent(cb.dataset.key))].filter(Boolean);
+        } else if (level === 'product') {
+            affected = bulkResults.filter(r => String(r.store_id) === cb.dataset.store && r.product_id === cb.dataset.product);
+        } else if (level === 'store') {
+            affected = bulkResults.filter(r => String(r.store_id) === cb.dataset.store);
+        }
+        affected.forEach(r => { cb.checked ? bulkChecked.add(bulkKey(r)) : bulkChecked.delete(bulkKey(r)); });
+        syncBulkCheckboxUi();
+        updateBulkCount();
+    });
+
+    bulkCheckAll.addEventListener('change', function () {
+        bulkChecked = bulkCheckAll.checked ? new Set(bulkResults.map(bulkKey)) : new Set();
+        syncBulkCheckboxUi();
+        updateBulkCount();
+    });
+
+    bulkNextBtn.addEventListener('click', function () {
+        if (bulkStep === 'select') {
+            if (!bulkChecked.size) { alert('Pilih minimal satu SKU.'); return; }
+            const val = Math.max(0, Math.floor(Number(bulkPriceIn.value) || 0));
+            if (!bulkPriceIn.value || Number(bulkPriceIn.value) < 0) { alert('Isi harga promo baru.'); return; }
+            const items = bulkSelectedItems();
+            bulkConfirmPrice.textContent = rupiah(val).replace(/<[^>]+>/g, '-');
+            bulkConfirmCount.textContent = items.length;
+            bulkConfirmList.innerHTML = items.map(r => `<div>${r.store_name} — ${r.sku_code}</div>`).join('');
+            bulkShowStep('confirm');
+        } else if (bulkStep === 'confirm') {
+            const val = Math.max(0, Math.floor(Number(bulkPriceIn.value) || 0));
+            const items = bulkSelectedItems().map(r => ({ store_id: r.store_id, sku_code: r.sku_code }));
+            bulkNextBtn.disabled = true;
+            fetch(BULK_APPLY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                body: JSON.stringify({ items, promotion_price: val }),
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(r))
+            .then(() => {
+                alert('Harga promo berhasil diperbarui.');
+                closeBulk();
+                window.location.reload();
+            })
+            .catch(() => { alert('Gagal menerapkan harga massal. Coba lagi.'); })
+            .finally(() => { bulkNextBtn.disabled = false; });
+        }
+    });
+
+    bulkBackBtn.addEventListener('click', function () {
+        if (bulkStep === 'confirm') bulkShowStep('select');
+        else if (bulkStep === 'select') bulkShowStep('search');
+    });
 })();
 </script>
 @endpush
@@ -457,12 +674,20 @@
                 </div>
             </div>
 
-            {{-- Export seluruh listing+varian toko terpilih ke .xlsx --}}
-            <a href="{{ route('products.export', ['store_id' => $storeId]) }}"
-               class="products-export-btn" style="flex-shrink:0"
-               title="Export semua data toko ini ke Excel">
-                <i class="bi bi-download"></i>
-            </a>
+            <div class="d-flex align-items-center gap-2" style="flex-shrink:0">
+                {{-- Update harga promo massal (lintas toko/produk, dari tempel SKU) --}}
+                <button type="button" id="bulk-price-open" class="products-export-btn"
+                        title="Update harga promo massal">
+                    <i class="bi bi-tags"></i>
+                </button>
+
+                {{-- Export seluruh listing+varian toko terpilih ke .xlsx --}}
+                <a href="{{ route('products.export', ['store_id' => $storeId]) }}"
+                   class="products-export-btn"
+                   title="Export semua data toko ini ke Excel">
+                    <i class="bi bi-download"></i>
+                </a>
+            </div>
         </div>
 
         @include('components.alert')
@@ -630,6 +855,87 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    {{-- Modal update harga promo massal: tempel (potongan) seller SKU → cari lintas
+         toko → pilih baris (grup toko/produk atau individual) → pratinjau → terapkan. --}}
+    <div id="bulk-price-modal"
+         style="display:none;position:fixed;inset:0;z-index:1060;background:rgba(0,0,0,.45);
+                align-items:center;justify-content:center;padding:16px">
+        <div style="background:var(--md-surface);color:var(--md-on-surface);border-radius:var(--md-shape-md,12px);
+                    width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;
+                    box-shadow:var(--md-elevation-3,0 8px 24px rgba(0,0,0,.2))">
+            <div class="d-flex align-items-center justify-content-between"
+                 style="padding:16px 20px;border-bottom:1px solid var(--md-outline-variant,var(--md-outline))">
+                <h2 style="font-size:15px;font-weight:600;margin:0">Update Harga Promo Massal</h2>
+                <button type="button" class="btn btn-sm js-bulk-price-cancel" title="Tutup"
+                        style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:2px 6px">
+                    <i class="bi bi-x-lg" style="font-size:15px"></i>
+                </button>
+            </div>
+
+            {{-- Langkah 1: cari --}}
+            <div id="bulk-price-step-search" style="padding:20px;overflow:auto">
+                <label for="bulk-price-keyword" class="mb-1 d-block" style="font-size:12.5px;color:var(--md-on-surface-variant)">
+                    Tempel / ketik seller SKU (boleh sebagian, mis. "T01-PTAA")
+                </label>
+                <div class="d-flex gap-2">
+                    <input type="text" id="bulk-price-keyword" class="form-control" placeholder="cth: T01-PTAA"
+                           style="border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
+                    <button type="button" id="bulk-price-search-btn"
+                            style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 18px;white-space:nowrap">
+                        Cari
+                    </button>
+                </div>
+                <p id="bulk-price-search-msg" class="mb-0 mt-2" style="font-size:12px;color:var(--md-on-surface-variant)">
+                    Hasil dicari lintas semua toko. Pilih baris yang ingin diupdate di langkah berikutnya.
+                </p>
+            </div>
+
+            {{-- Langkah 2: hasil + pilih + isi harga --}}
+            <div id="bulk-price-step-select" style="display:none;padding:16px 20px;overflow:auto;flex:1">
+                <div class="d-flex align-items-center justify-content-between mb-2" style="flex-wrap:wrap;gap:8px">
+                    <label class="d-flex align-items-center gap-2 m-0" style="font-size:13px">
+                        <input type="checkbox" id="bulk-price-check-all"> Pilih semua
+                    </label>
+                    <span id="bulk-price-count" style="font-size:12.5px;color:var(--md-on-surface-variant)"></span>
+                </div>
+                <div id="bulk-price-results" style="border:1px solid var(--md-outline-variant,var(--md-outline));border-radius:var(--md-shape-xs);max-height:38vh;overflow:auto"></div>
+
+                <div class="mt-3">
+                    <label for="bulk-price-input" class="mb-1 d-block" style="font-size:12.5px;color:var(--md-on-surface-variant)">
+                        Harga Promo Baru (Rp) — berlaku untuk semua baris terpilih
+                    </label>
+                    <input type="number" id="bulk-price-input" min="0" step="1" inputmode="numeric"
+                           class="form-control" placeholder="0" style="max-width:220px;
+                           border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
+                </div>
+            </div>
+
+            {{-- Langkah 3: konfirmasi --}}
+            <div id="bulk-price-step-confirm" style="display:none;padding:20px;overflow:auto">
+                <p style="font-size:14px">
+                    Terapkan harga promo <strong id="bulk-price-confirm-price"></strong>
+                    ke <strong id="bulk-price-confirm-count"></strong> SKU terpilih?
+                </p>
+                <div id="bulk-price-confirm-list" style="max-height:34vh;overflow:auto;border:1px solid var(--md-outline-variant,var(--md-outline));border-radius:var(--md-shape-xs);padding:8px 12px;font-size:12.5px;color:var(--md-on-surface-variant)"></div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center" style="padding:14px 20px;border-top:1px solid var(--md-outline-variant,var(--md-outline))">
+                <button type="button" id="bulk-price-back" style="display:none;background:transparent;border:1px solid var(--md-outline);color:var(--md-on-surface);border-radius:var(--md-shape-xs);font-size:13.5px;padding:8px 16px">
+                    Kembali
+                </button>
+                <div class="d-flex gap-2 ms-auto">
+                    <button type="button" class="js-bulk-price-cancel" style="background:transparent;border:1px solid var(--md-outline);color:var(--md-on-surface);border-radius:var(--md-shape-xs);font-size:13.5px;padding:8px 16px">
+                        Batal
+                    </button>
+                    <button type="button" id="bulk-price-next"
+                            style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 20px">
+                        Lanjut
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -23,6 +23,10 @@ Route::post('/products/price', [ProductController::class, 'updatePrice'])
     ->name('products.update-price');
 Route::post('/products/price/bulk', [ProductController::class, 'bulkUpdatePrice'])
     ->name('products.bulk-update-price');
+Route::get('/products/price/bulk-search', [ProductController::class, 'bulkPriceSearch'])
+    ->name('products.bulk-price-search');
+Route::post('/products/price/bulk-apply', [ProductController::class, 'bulkPriceApply'])
+    ->name('products.bulk-price-apply');
 Route::resource('products', ProductController::class)->only(['index']);
 Route::resource('stores', StoreController::class);
 
