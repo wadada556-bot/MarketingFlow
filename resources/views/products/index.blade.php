@@ -80,8 +80,8 @@
                     </button>
                 </td>
             </tr>`).join('');
-        return `<div style="padding:16px 16px 8px 44px;overflow-x:auto">
-            <table class="table align-middle mb-0" style="table-layout:fixed;width:${total}px">
+        return `<div style="padding:16px 0 8px 44px;overflow-x:visible">
+            <table class="table align-middle mb-0" style="table-layout:fixed;width:${total}px;margin-left:auto">
               <colgroup>
                 <col style="width:${w.varian}px">
                 <col style="width:${w.productId}px"><col style="width:${w.skuId}px">
@@ -136,8 +136,10 @@
         const indentLeft = tdRect.left + tdPadL + 44 /* wrapper padding-left */;
 
         // Lebar kontainer sebenarnya yg tersedia utk tabel detail (content
-        // box div wrapper), dipakai sbg batas atas total lebar tabel.
-        const availWidth = tdEl.clientWidth - tdPadL - tdPadR - 44 /* wrapper padding-left */ - 16 /* wrapper padding-right */;
+        // box div wrapper; wrapper tak punya padding-right — lihat buildDetail
+        // — supaya ujung kanan tabel detail bisa didorong pas ke ujung kolom
+        // Harga Jual baris induk oleh alignDetailTableRight()).
+        const availWidth = tdEl.clientWidth - tdPadL - tdPadR - 44 /* wrapper padding-left */;
         const fixedSum   = stok + po + hpp + harga + aksi;
         const leadingCap = Math.max(80, availWidth - fixedSum);
 
@@ -199,9 +201,29 @@
         const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(subrow.dataset.productId)}&store_id=${STORE_ID ?? ''}${HPP_EMPTY ? '&hpp_empty=1' : ''}`;
         fetch(url)
             .then(r => r.json())
-            .then(d => { td.innerHTML = buildDetail(d, cols); })
+            .then(d => {
+                td.innerHTML = buildDetail(d, cols);
+                alignDetailTableRight(catalogRow, td);
+            })
             .catch(() => { td.innerHTML = '<div style="padding:16px 44px;color:var(--md-error);font-size:13px">Gagal memuat varian.</div>'; });
     });
+
+    // Dorong tabel detail (yg lebarnya sengaja dibatasi < lebar kontainer,
+    // lihat computeDetailCols) via margin-left:auto supaya ujung kolom Aksi
+    // (kolom terakhir tabel detail) sejajar persis dgn ujung kolom Harga
+    // Jual pada baris induk (kolom terakhir tabel utama) — bukan menggantung
+    // di tengah dgn celah kosong di kanan. Dikoreksi empiris (bukan dihitung
+    // dari asumsi padding) krn asumsi padding terbukti gampang meleset 1
+    // langkah alignment sebelumnya (lihat commit 6f145b4/e21403b).
+    function alignDetailTableRight(catalogRow, tdEl) {
+        const table = tdEl.querySelector('table');
+        const targetRight = catalogRow.children[4].getBoundingClientRect().right; // kolom Harga Jual
+        const diff = targetRight - table.getBoundingClientRect().right;
+        if (Math.abs(diff) > 0.5) {
+            const currentML = parseFloat(getComputedStyle(table).marginLeft) || 0;
+            table.style.marginLeft = Math.max(0, currentML + diff) + 'px';
+        }
+    }
 
     // ── Histori harga (modal) ────────────────────────────────────────────────
     const typeLabel = (t) => t === 'retail' ? 'Harga Normal' : (t === 'promotion' ? 'Harga Promo' : t);
