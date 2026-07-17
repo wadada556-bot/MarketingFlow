@@ -58,7 +58,12 @@ class ProductController extends Controller
             })
             ->select(
                 'tl.product_id',
-                DB::raw('COUNT(*) as variant_count'),
+                // Saat filter "HPP belum terisi" aktif, hitung hanya varian yg
+                // benar-benar tampil di tabel detail (hpp=0) — bukan total varian
+                // listing — supaya angka "N SKU" konsisten dgn isi saat dibuka.
+                DB::raw($hppEmpty
+                    ? 'SUM(CASE WHEN j.hpp = 0 THEN 1 ELSE 0 END) as variant_count'
+                    : 'COUNT(*) as variant_count'),
                 DB::raw('SUM(j.stok) as total_stok'),
                 DB::raw('SUM(j.po_qty) as total_po'),
             )
