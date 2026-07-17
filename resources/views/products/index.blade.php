@@ -407,17 +407,23 @@
         @endif
 
         {{-- Filter chip: hanya listing yang punya varian ber-HPP belum terisi --}}
-        <label class="btn d-inline-flex align-items-center gap-2 m-0"
-               title="Tampilkan hanya produk yang masih ada HPP kosong (mis. bundling)"
-               style="border:1px solid {{ $hppEmpty ? 'var(--md-tertiary)' : 'var(--md-outline)' }};
-                      background:{{ $hppEmpty ? 'var(--md-tertiary-container)' : 'transparent' }};
-                      color:{{ $hppEmpty ? 'var(--md-on-tertiary-container)' : 'var(--md-on-surface)' }};
-                      border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:{{ $hppEmpty ? 600 : 400 }}">
-            <input type="checkbox" name="hpp_empty" value="1" onchange="this.form.submit()" @checked($hppEmpty) class="d-none">
-            <i class="bi bi-cash-stack" style="font-size:13px"></i>
-            HPP
-            @if($hppEmpty)<i class="bi bi-check-lg" style="font-size:14px"></i>@endif
-        </label>
+        <div class="input-group" style="width:auto">
+            <span class="input-group-text"
+                  style="background:var(--md-surface-container-high);border-color:var(--md-outline);border-right:0;border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs);color:var(--md-on-surface-variant)">
+                <i class="bi bi-cash-stack" style="font-size:14px"></i>
+            </span>
+            <label class="btn d-inline-flex align-items-center gap-2 m-0"
+                   title="Tampilkan hanya produk yang masih ada HPP kosong (mis. bundling)"
+                   style="border:1px solid {{ $hppEmpty ? 'var(--md-tertiary)' : 'var(--md-outline)' }};
+                          border-left:0;
+                          background:{{ $hppEmpty ? 'var(--md-tertiary-container)' : 'transparent' }};
+                          color:{{ $hppEmpty ? 'var(--md-on-tertiary-container)' : 'var(--md-on-surface)' }};
+                          border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;font-size:13.5px;font-weight:{{ $hppEmpty ? 600 : 400 }}">
+                <input type="checkbox" name="hpp_empty" value="1" onchange="this.form.submit()" @checked($hppEmpty) class="d-none">
+                HPP
+                @if($hppEmpty)<i class="bi bi-check-lg" style="font-size:14px"></i>@endif
+            </label>
+        </div>
     </form>
     </div>
 
