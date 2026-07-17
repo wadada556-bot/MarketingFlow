@@ -523,9 +523,17 @@
     bulkSearchBtn.addEventListener('click', runBulkSearch);
     bulkKeyword.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); runBulkSearch(); } });
 
+    // Denominator harus dihitung dari key unik (store,sku) — bukan bulkResults.length
+    // mentah, karena satu sku_code bisa muncul di >1 listing (product_id) pada toko
+    // yg sama sehingga bulkResults punya baris duplikat secara (store,sku).
+    function bulkUniqueKeyCount() {
+        return new Set(bulkResults.map(bulkKey)).size;
+    }
+
     function updateBulkCount() {
-        bulkCountEl.textContent = `${bulkChecked.size} dari ${bulkResults.length} SKU dipilih`;
-        bulkCheckAll.checked = bulkResults.length > 0 && bulkChecked.size === bulkResults.length;
+        const total = bulkUniqueKeyCount();
+        bulkCountEl.textContent = `${bulkChecked.size} dari ${total} SKU dipilih`;
+        bulkCheckAll.checked = total > 0 && bulkChecked.size === total;
     }
 
     function renderBulkResults() {
