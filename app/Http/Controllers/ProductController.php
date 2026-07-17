@@ -60,6 +60,7 @@ class ProductController extends Controller
                 'tl.product_id',
                 DB::raw('COUNT(*) as variant_count'),
                 DB::raw('SUM(j.stok) as total_stok'),
+                DB::raw('SUM(j.po_qty) as total_po'),
             )
             ->groupBy('tl.product_id')
             ->orderByRaw('SUM(j.stok) DESC')
@@ -85,7 +86,7 @@ class ProductController extends Controller
                     ->where('tl.store_id', $storeId)
                     ->whereIn('tl.product_id', $pids)
                     ->orderBy('ts.sku_id')
-                    ->get(['tl.product_id', 'ts.sku_code', 'p.retail_price', 'p.promotion_price']);
+                    ->get(['tl.product_id', 'ts.sku_code', 'p.retail_price', 'p.promotion_price', 'j.hpp']);
 
                 $meta = $vrows->groupBy('product_id')->map(function ($rows) {
                     $perBase = [];   // base => [sku_code, num] (urut kemunculan)
@@ -97,6 +98,7 @@ class ProductController extends Controller
                     }
                     $retail = $rows->pluck('retail_price')->filter(fn ($v) => $v > 0);
                     $promo  = $rows->pluck('promotion_price')->filter(fn ($v) => $v > 0);
+                    $hpp    = $rows->pluck('hpp')->filter(fn ($v) => $v > 0);
 
                     return (object) [
                         'induk'          => implode(' + ', array_map(fn ($x) => $x[0], array_values($perBase))),
@@ -105,6 +107,8 @@ class ProductController extends Controller
                         'retail_max'     => $retail->max(),
                         'promo_min'      => $promo->min(),
                         'promo_max'      => $promo->max(),
+                        'hpp_min'        => $hpp->min(),
+                        'hpp_max'        => $hpp->max(),
                     ];
                 });
             }
