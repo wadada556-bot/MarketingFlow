@@ -72,8 +72,15 @@
                     </button>
                 </td>
             </tr>`).join('');
-        return `<div style="padding:16px 8px 8px 44px;overflow-x:auto">
-            <table class="table align-middle mb-0">
+        return `<div style="padding:16px 16px 8px 44px;overflow-x:auto">
+            <table class="table align-middle mb-0" style="table-layout:fixed;width:1290px">
+              <colgroup>
+                <col style="width:240px">
+                <col style="width:170px"><col style="width:170px">
+                <col style="width:110px"><col style="width:100px">
+                <col style="width:170px"><col style="width:220px">
+                <col style="width:110px">
+              </colgroup>
               <thead><tr style="color:var(--md-on-surface-variant);font-size:12px">
                 <th>Varian</th><th>Product ID</th><th>SKU ID</th>
                 <th class="text-end">Stok</th><th class="text-end">PO</th>

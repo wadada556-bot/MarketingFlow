@@ -19,11 +19,11 @@
     <table class="md-table table-hover align-middle">
         <thead>
             <tr>
-                <th>Produk</th>
-                <th class="text-end" style="width:100px">Total Stok</th>
+                <th style="width:640px">Produk</th>
+                <th class="text-end" style="width:110px">Total Stok</th>
                 <th class="text-end" style="width:100px">Total PO</th>
-                <th class="text-end" style="width:150px">HPP</th>
-                <th class="text-end" style="width:200px">Harga Jual</th>
+                <th class="text-end" style="width:170px">HPP</th>
+                <th class="text-end" style="width:220px">Harga Jual</th>
             </tr>
         </thead>
         <tbody>

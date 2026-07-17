@@ -169,3 +169,14 @@
 .page-products-index .md-table td.text-end {
     text-align: right;
 }
+
+/* Lebar kolom tetap (bukan auto berdasar konten) supaya tabel detail varian
+   di dalam sub-baris bisa memakai lebar identik pada kolom Stok/PO/HPP/Harga
+   Jual dan benar-benar sejajar dgn kolom yg sama di tabel utama. */
+.page-products-index .md-table {
+    table-layout: fixed;
+}
+.page-products-index .md-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
