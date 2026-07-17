@@ -39,22 +39,6 @@
                     'badge'  => 0,
                 ],
                 [
-                    'label'  => 'Product Ads',
-                    'icon'   => 'bi-megaphone',
-                    // Jangan pakai 'product-ads*' — pola itu juga cocok dengan
-                    // /product-ads-new, sehingga dua menu menyala bersamaan.
-                    'active' => request()->is('product-ads') || request()->is('product-ads/*'),
-                    'href'   => route('product-ads.index'),
-                    'badge'  => 0,
-                ],
-                [
-                    'label'  => 'Product Ads New',
-                    'icon'   => 'bi-bullseye',
-                    'active' => request()->is('product-ads-new*'),
-                    'href'   => route('product-ads-new.index'),
-                    'badge'  => 0,
-                ],
-                [
                     'label'  => 'Products',
                     'icon'   => 'bi-box-seam',
                     'active' => request()->is('products*'),
@@ -66,20 +50,6 @@
                     'icon'   => 'bi-shop',
                     'active' => request()->is('stores*'),
                     'href'   => '/stores',
-                    'badge'  => 0,
-                ],
-                [
-                    'label'  => 'History Penjualan',
-                    'icon'   => 'bi-clock-history',
-                    'active' => request()->is('sales-history*'),
-                    'href'   => route('sales-history.index'),
-                    'badge'  => 0,
-                ],
-                [
-                    'label'  => 'ROAS Calculator',
-                    'icon'   => 'bi-calculator',
-                    'active' => request()->is('roas-calculator*'),
-                    'href'   => route('roas-calculator.index'),
                     'badge'  => 0,
                 ],
                 [
