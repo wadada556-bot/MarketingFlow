@@ -32,13 +32,6 @@
             $unreadNotifCount = \App\Models\User::first()?->unreadNotifications()->count() ?? 0;
             $navItems = [
                 [
-                    'label'  => 'Peringatan Stok',
-                    'icon'   => 'bi-grid-1x2',
-                    'active' => request()->is('dashboard*'),
-                    'href'   => route('dashboard'),
-                    'badge'  => 0,
-                ],
-                [
                     'label'  => 'Products',
                     'icon'   => 'bi-box-seam',
                     'active' => request()->is('products*'),
@@ -50,6 +43,13 @@
                     'icon'   => 'bi-shop',
                     'active' => request()->is('stores*'),
                     'href'   => '/stores',
+                    'badge'  => 0,
+                ],
+                [
+                    'label'  => 'Peringatan Stok',
+                    'icon'   => 'bi-grid-1x2',
+                    'active' => request()->is('dashboard*'),
+                    'href'   => route('dashboard'),
                     'badge'  => 0,
                 ],
                 [
