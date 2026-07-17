@@ -32,7 +32,7 @@
             $unreadNotifCount = \App\Models\User::first()?->unreadNotifications()->count() ?? 0;
             $navItems = [
                 [
-                    'label'  => 'Dashboard',
+                    'label'  => 'Peringatan Stok',
                     'icon'   => 'bi-grid-1x2',
                     'active' => request()->is('dashboard*'),
                     'href'   => route('dashboard'),
@@ -53,7 +53,7 @@
                     'badge'  => 0,
                 ],
                 [
-                    'label'  => 'Notifikasi',
+                    'label'  => 'Perubahan HPP',
                     'icon'   => 'bi-bell',
                     'active' => request()->is('notifications*'),
                     'href'   => route('notifications.index'),

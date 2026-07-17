@@ -10,9 +10,14 @@ framework) with vanilla JS for interactivity (fetch + custom modal overlays — 
 component, no Alpine). Bootstrap Icons (`bi bi-*`) for icons, Tailwind v4 + a custom Material Design 3
 token layer for styling.
 
-Current menu surface (2026-07-17): **Dashboard** (stock alerts only — GMV/ROAS/chart widgets, store
-ranking, and ads performance were removed from the dashboard), **Products**, **Stores**, and
-**Notifikasi**. The Product Ads, Product Ads New, History Penjualan, and ROAS Calculator menus/routes/
+Current menu surface (2026-07-17): **Peringatan Stok** (route `/dashboard`, stock alerts only —
+GMV/ROAS/chart widgets, store ranking, and ads performance were removed from this page), **Products**,
+**Stores**, and **Perubahan HPP** (route `/notifications`, renamed from "Dashboard"/"Notifikasi" —
+labels only, routes unchanged). "Perubahan HPP" only ever contains HPP-change entries today because
+`HppChangedNotification` is the sole notification persisted to the `notifications` DB table
+(`StockAlertNotification` is mail-only, sent via `Notification::route('mail', ...)` — see
+`NotifyStockCheck`); if stock alerts are ever also persisted to that table, this menu name will need
+revisiting. The Product Ads, Product Ads New, History Penjualan, and ROAS Calculator menus/routes/
 controllers/views were deleted (see `git log` around commits `ffeb3f1`/`c58cf04`) — do not reintroduce
 routes or links to `product-ads`, `product-ads-new`, `sales-history`, or `roas-calculator` unless
 explicitly asked to bring the feature back.

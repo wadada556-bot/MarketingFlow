@@ -1,6 +1,6 @@
 @extends('components.layouts.app')
 
-@section('title', 'Dashboard')
+@section('title', 'Peringatan Stok')
 
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}?v={{ filemtime(public_path('css/dashboard.css')) }}">
@@ -12,7 +12,7 @@
 {{-- ── Page Header ─────────────────────────────────────── --}}
 <div class="md-page-header">
     <div>
-        <h1>Dashboard</h1>
+        <h1>Peringatan Stok</h1>
         <p class="subtitle">Peringatan stok produk</p>
     </div>
 </div>

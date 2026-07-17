@@ -1,13 +1,13 @@
 @extends('components.layouts.app')
 
-@section('title', 'Notifikasi')
+@section('title', 'Perubahan HPP')
 
 @section('content')
 <div class="container-fluid py-4 px-4">
 
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h5 class="mb-0" style="font-weight:600;color:var(--md-on-surface)">
-            <i class="bi bi-bell me-2"></i>Notifikasi
+            <i class="bi bi-bell me-2"></i>Perubahan HPP
             @if($unreadCount > 0)
                 <span class="badge ms-1" style="background:var(--md-error);color:var(--md-on-error);font-size:12px">
                     {{ $unreadCount }}
