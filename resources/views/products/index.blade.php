@@ -85,10 +85,10 @@
     }
 
     document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.js-expand');
-        if (!btn) return;
-        const subrow = btn.closest('.products-subrow');
-        const next   = subrow.nextElementSibling;
+        const subrow = e.target.closest('.products-subrow');
+        if (!subrow) return;
+        const btn  = subrow.querySelector('.js-expand');
+        const next = subrow.nextElementSibling;
 
         const setToggleState = (open) => {
             btn.setAttribute('aria-expanded', String(open));

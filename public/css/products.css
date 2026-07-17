@@ -131,9 +131,13 @@
     justify-content: space-between;
     padding-top: 6px;
     border-top: 1px dashed var(--md-outline-variant);
+    cursor: pointer;
+}
+.products-subrow:hover .products-subrow-inner {
+    border-top-color: var(--md-primary);
 }
 .products-subrow-count {
-    font-size: 12px;
+    font-size: 13.5px;
     color: var(--md-on-surface-variant);
 }
 .products-subrow-toggle {
@@ -144,7 +148,7 @@
     border: none;
     padding: 0;
     color: var(--md-primary);
-    font-size: 12.5px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
 }
@@ -152,7 +156,7 @@
     text-decoration: underline;
 }
 .products-subrow-toggle .js-expand-icon {
-    font-size: 11px;
+    font-size: 12px;
     transition: transform .15s ease;
 }
 /* Baris utama tak perlu bingkai bawah sendiri — subrow di bawahnya yg menyediakan garis. */
