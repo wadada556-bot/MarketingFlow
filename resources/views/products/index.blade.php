@@ -81,7 +81,7 @@
                 </td>
             </tr>`).join('');
         return `<div style="padding:16px 0 8px 44px;overflow-x:visible">
-            <table class="table align-middle mb-0" style="table-layout:fixed;width:${total}px;margin-left:auto">
+            <table class="table align-middle mb-0" style="table-layout:fixed;width:${total}px">
               <colgroup>
                 <col style="width:${w.varian}px">
                 <col style="width:${w.productId}px"><col style="width:${w.skuId}px">
@@ -102,22 +102,15 @@
     // Hitung lebar tiap kolom tabel detail dari geometri NYATA baris induk
     // (bukan CSS auto-layout, yg terbukti tak stabil lintas lebar layar).
     // Stok/PO/HPP/Harga Jual = persis sama dgn kolom yg sama di baris induk.
-    // Varian+Product ID+SKU ID (gabungan/"leading") idealnya persis sebesar
-    // kolom "Produk" pada baris induk (biar Stok sejajar) — TAPI kolom
-    // "Produk" adalah kolom flex yg melebar mengisi sisa viewport, jadi di
-    // layar lebar leading itu bisa jadi ratusan px lebih besar dari yg
-    // dibutuhkan tabel detail (8 kolom, ada Product ID/SKU ID/Aksi yg tak
-    // punya pasangan di baris induk) → Varian jadi kelewat lebar & tabel
-    // detail meluber sampai perlu scroll horizontal. Maka leading dibatasi
-    // (di-cap) oleh DUA batas: (1) lebar kontainer sebenarnya (availWidth,
-    // supaya total tabel tak pernah melebihi lebar baris → tak butuh scroll)
-    // dan (2) batas visual MAX_LEADING (supaya Varian tak membengkak sia-sia
-    // walau ruang kosong tersedia). Konsekuensinya: saat kolom Produk baris
-    // induk sangat lebar, Stok tabel detail tak lagi 100% sejajar dgn Stok
-    // baris induk — trade-off yg disengaja demi kolom Varian yg ringkas &
-    // tanpa scroll (diminta user), bukan regresi dari alignment fix sebelumnya.
-    const MAX_LEADING = 560; // ~220 varian + 170 productId + 170 skuId
-
+    // Leading (Varian+Product ID+SKU ID) = SISA ruang persis dari ujung kiri
+    // (indentLeft, tempat tabel detail mulai) sampai ujung kanan kolom Harga
+    // Jual baris induk (target kanan) dikurangi Stok/PO/HPP/Harga/Aksi —
+    // jadi tabel detail otomatis menempel pas di KEDUA ujung sekaligus (kiri:
+    // Varian mulai sejajar dgn indent di bawah Produk; kanan: Aksi berakhir
+    // persis di ujung Harga Jual) dari SATU perhitungan geometri, tanpa perlu
+    // dorongan margin terpisah. (Percobaan sebelumnya yg men-cap leading lalu
+    // mendorongnya via margin-left:auto menyisakan celah kosong lebar di kiri
+    // — regresi yg diperbaiki di sini.)
     function computeDetailCols(catalogRow, tdEl) {
         const cells = catalogRow ? catalogRow.children : [];
         const rect  = (i) => cells[i] ? cells[i].getBoundingClientRect() : null;
@@ -131,28 +124,18 @@
         // Indent = X awal tabel detail (kiri td + padding wrapper 44px kiri).
         const tdStyle = getComputedStyle(tdEl);
         const tdPadL  = parseFloat(tdStyle.paddingLeft) || 0;
-        const tdPadR  = parseFloat(tdStyle.paddingRight) || 0;
         const tdRect  = tdEl.getBoundingClientRect();
         const indentLeft = tdRect.left + tdPadL + 44 /* wrapper padding-left */;
 
-        // Lebar kontainer sebenarnya yg tersedia utk tabel detail (content
-        // box div wrapper; wrapper tak punya padding-right — lihat buildDetail
-        // — supaya ujung kanan tabel detail bisa didorong pas ke ujung kolom
-        // Harga Jual baris induk oleh alignDetailTableRight()).
-        const availWidth = tdEl.clientWidth - tdPadL - tdPadR - 44 /* wrapper padding-left */;
-        const fixedSum   = stok + po + hpp + harga + aksi;
-        const leadingCap = Math.max(80, availWidth - fixedSum);
-
-        const targetStokLeft = rStok ? rStok.left : null;
-        let leading = targetStokLeft !== null ? (targetStokLeft - indentLeft) : 580;
-        leading = Math.min(leading, leadingCap, MAX_LEADING);
-        leading = Math.max(80, Math.round(leading));
+        const targetRight = rHarga ? rHarga.right : (indentLeft + 1200);
+        const fixedSum = stok + po + hpp + harga + aksi;
+        let leading = Math.round(targetRight - indentLeft - fixedSum);
+        leading = Math.max(80, leading);
 
         let productId = 170, skuId = 170, varian = leading - productId - skuId;
         if (varian < 40) {
-            // Leading kepepet (kolom Produk baris induk sempit, atau leading
-            // sudah dipangkas oleh cap) — sisakan Varian min 40px, sisanya
-            // dibagi rata ke Product ID/SKU ID.
+            // Leading kepepet (kolom Produk baris induk sempit) — sisakan
+            // Varian min 40px, sisanya dibagi rata ke Product ID/SKU ID.
             varian = 40;
             productId = skuId = Math.max(30, Math.round((leading - varian) / 2));
         }
@@ -208,18 +191,17 @@
             .catch(() => { td.innerHTML = '<div style="padding:16px 44px;color:var(--md-error);font-size:13px">Gagal memuat varian.</div>'; });
     });
 
-    // Dorong tabel detail (yg lebarnya sengaja dibatasi < lebar kontainer,
-    // lihat computeDetailCols) via margin-left:auto supaya ujung kolom Aksi
-    // (kolom terakhir tabel detail) sejajar persis dgn ujung kolom Harga
-    // Jual pada baris induk (kolom terakhir tabel utama) — bukan menggantung
-    // di tengah dgn celah kosong di kanan. Dikoreksi empiris (bukan dihitung
-    // dari asumsi padding) krn asumsi padding terbukti gampang meleset 1
-    // langkah alignment sebelumnya (lihat commit 6f145b4/e21403b).
+    // computeDetailCols() sudah menghitung lebar tabel supaya ujung kanannya
+    // pas di ujung kolom Harga Jual baris induk — fungsi ini cuma koreksi
+    // halus (beberapa px) utk selisih rendering riil (mis. padding internal
+    // td) yg tak tertangkap oleh perhitungan geometri. Dibatasi kecil (≤40px)
+    // supaya tak pernah menciptakan celah lebar seperti margin-left:auto
+    // versi sebelumnya (lihat commit 85449e8, direvisi di sini).
     function alignDetailTableRight(catalogRow, tdEl) {
         const table = tdEl.querySelector('table');
         const targetRight = catalogRow.children[4].getBoundingClientRect().right; // kolom Harga Jual
         const diff = targetRight - table.getBoundingClientRect().right;
-        if (Math.abs(diff) > 0.5) {
+        if (Math.abs(diff) > 0.5 && Math.abs(diff) <= 40) {
             const currentML = parseFloat(getComputedStyle(table).marginLeft) || 0;
             table.style.marginLeft = Math.max(0, currentML + diff) + 'px';
         }
