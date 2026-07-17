@@ -102,11 +102,22 @@
     // Hitung lebar tiap kolom tabel detail dari geometri NYATA baris induk
     // (bukan CSS auto-layout, yg terbukti tak stabil lintas lebar layar).
     // Stok/PO/HPP/Harga Jual = persis sama dgn kolom yg sama di baris induk.
-    // Varian+Product ID+SKU ID (gabungan) = persis sebesar kolom "Produk" pada
-    // baris induk, dihitung dari selisih X target Stok dgn X awal tabel detail
-    // (indent), lalu dibagi 3 dgn Product ID/SKU ID diprioritaskan 170px dan
-    // sisanya ke Varian — supaya kolom Stok di bawahnya mulai persis di X yg
-    // sama dgn "Total Stok" pada baris induk, di lebar layar berapa pun.
+    // Varian+Product ID+SKU ID (gabungan/"leading") idealnya persis sebesar
+    // kolom "Produk" pada baris induk (biar Stok sejajar) — TAPI kolom
+    // "Produk" adalah kolom flex yg melebar mengisi sisa viewport, jadi di
+    // layar lebar leading itu bisa jadi ratusan px lebih besar dari yg
+    // dibutuhkan tabel detail (8 kolom, ada Product ID/SKU ID/Aksi yg tak
+    // punya pasangan di baris induk) → Varian jadi kelewat lebar & tabel
+    // detail meluber sampai perlu scroll horizontal. Maka leading dibatasi
+    // (di-cap) oleh DUA batas: (1) lebar kontainer sebenarnya (availWidth,
+    // supaya total tabel tak pernah melebihi lebar baris → tak butuh scroll)
+    // dan (2) batas visual MAX_LEADING (supaya Varian tak membengkak sia-sia
+    // walau ruang kosong tersedia). Konsekuensinya: saat kolom Produk baris
+    // induk sangat lebar, Stok tabel detail tak lagi 100% sejajar dgn Stok
+    // baris induk — trade-off yg disengaja demi kolom Varian yg ringkas &
+    // tanpa scroll (diminta user), bukan regresi dari alignment fix sebelumnya.
+    const MAX_LEADING = 560; // ~220 varian + 170 productId + 170 skuId
+
     function computeDetailCols(catalogRow, tdEl) {
         const cells = catalogRow ? catalogRow.children : [];
         const rect  = (i) => cells[i] ? cells[i].getBoundingClientRect() : null;
@@ -118,16 +129,28 @@
         const aksi  = 110;
 
         // Indent = X awal tabel detail (kiri td + padding wrapper 44px kiri).
-        const tdRect = tdEl.getBoundingClientRect();
-        const indentLeft = tdRect.left + 16 /* td padding */ + 44 /* wrapper padding */;
+        const tdStyle = getComputedStyle(tdEl);
+        const tdPadL  = parseFloat(tdStyle.paddingLeft) || 0;
+        const tdPadR  = parseFloat(tdStyle.paddingRight) || 0;
+        const tdRect  = tdEl.getBoundingClientRect();
+        const indentLeft = tdRect.left + tdPadL + 44 /* wrapper padding-left */;
+
+        // Lebar kontainer sebenarnya yg tersedia utk tabel detail (content
+        // box div wrapper), dipakai sbg batas atas total lebar tabel.
+        const availWidth = tdEl.clientWidth - tdPadL - tdPadR - 44 /* wrapper padding-left */ - 16 /* wrapper padding-right */;
+        const fixedSum   = stok + po + hpp + harga + aksi;
+        const leadingCap = Math.max(80, availWidth - fixedSum);
+
         const targetStokLeft = rStok ? rStok.left : null;
         let leading = targetStokLeft !== null ? (targetStokLeft - indentLeft) : 580;
+        leading = Math.min(leading, leadingCap, MAX_LEADING);
         leading = Math.max(80, Math.round(leading));
 
         let productId = 170, skuId = 170, varian = leading - productId - skuId;
         if (varian < 40) {
-            // Kolom Produk baris induk sempit (nama produk pendek) — sisakan
-            // Varian min 40px, sisanya dibagi rata ke Product ID/SKU ID.
+            // Leading kepepet (kolom Produk baris induk sempit, atau leading
+            // sudah dipangkas oleh cap) — sisakan Varian min 40px, sisanya
+            // dibagi rata ke Product ID/SKU ID.
             varian = 40;
             productId = skuId = Math.max(30, Math.round((leading - varian) / 2));
         }
