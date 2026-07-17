@@ -122,7 +122,7 @@ class ProductController extends Controller
             return ['rel' => $c->diffForHumans(), 'exact' => $c->isoFormat('D MMM YYYY, HH:mm')];
         };
         $freshness = [
-            ['label' => 'Stok & HPP', 'hint' => 'dari Jubelio'] + $freshFmt(
+            ['label' => 'Stok, HPP & PO', 'hint' => 'dari Jubelio'] + $freshFmt(
                 DB::table('jubelio_inventory')->max(DB::raw('COALESCE(synced_at, updated_at)'))
             ),
             ['label' => 'Harga diskon', 'hint' => 'scrape Tokopedia'] + $freshFmt(
