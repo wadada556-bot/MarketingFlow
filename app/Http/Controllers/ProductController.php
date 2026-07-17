@@ -16,6 +16,10 @@ class ProductController extends Controller
     {
         $search   = trim((string) $request->input('search'));
         $hppEmpty = $request->boolean('hpp_empty');
+        $perPage  = (int) $request->input('per_page', 15);
+        if (! in_array($perPage, [10, 20, 50, 100], true)) {
+            $perPage = 15;
+        }
 
         // Toko untuk pemilih harga (harga jual berbeda per toko)
         $stores  = Store::select('id', 'name', 'jubelio_store_id')->orderBy('name')->get();
@@ -70,7 +74,7 @@ class ProductController extends Controller
             ->groupBy('tl.product_id')
             ->orderByRaw('SUM(j.stok) DESC')
             ->orderBy('tl.product_id')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
         // Meta per listing (hanya halaman ini): label SKU induk + rentang harga.
@@ -145,7 +149,7 @@ class ProductController extends Controller
             ),
         ];
 
-        return view('products.index', compact('catalog', 'search', 'hppEmpty', 'stores', 'storeId', 'meta', 'freshness'));
+        return view('products.index', compact('catalog', 'search', 'hppEmpty', 'stores', 'storeId', 'meta', 'freshness', 'perPage'));
     }
 
     /**

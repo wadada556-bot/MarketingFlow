@@ -5,8 +5,6 @@
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/products.css') }}?v={{ filemtime(public_path('css/products.css')) }}">
     <style>
-        .pagination-wrapper nav > div:first-child { display: none !important; }
-        .pagination-wrapper nav { margin-bottom: 0 !important; }
         .js-expand { transition: transform .15s ease; }
     </style>
 @endpush
@@ -533,20 +531,7 @@
     @include('products.partials.table', ['catalog' => $catalog, 'meta' => $meta])
 
     @if($catalog->isNotEmpty())
-        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center mt-4 gap-2">
-            <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">
-                Menampilkan
-                <strong style="color:var(--md-on-surface)">{{ $catalog->firstItem() ?? 0 }}</strong>
-                –
-                <strong style="color:var(--md-on-surface)">{{ $catalog->lastItem() ?? 0 }}</strong>
-                dari
-                <strong style="color:var(--md-on-surface)">{{ $catalog->total() }}</strong>
-                produk (listing)
-            </p>
-            <div class="pagination-wrapper">
-                {{ $catalog->withQueryString()->links() }}
-            </div>
-        </div>
+        @include('products.partials.pagination', ['catalog' => $catalog, 'perPage' => $perPage])
     @endif
 
     {{-- Modal histori harga (dibuka dari tombol "Histori" pada detail varian) --}}

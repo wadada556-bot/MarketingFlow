@@ -184,3 +184,104 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* Pagination kustom (nomor halaman + selector "N/Halaman") */
+.products-pager {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.products-pager-btn {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-shape-xs);
+    font-size: 13px;
+    color: var(--md-on-surface);
+    text-decoration: none;
+    background: var(--md-surface);
+    transition: background .12s, border-color .12s;
+}
+.products-pager-btn:hover:not(.active):not(.disabled) {
+    background: var(--md-surface-container-high);
+    border-color: var(--md-outline);
+    color: var(--md-on-surface);
+}
+.products-pager-btn.active {
+    background: var(--md-on-surface);
+    border-color: var(--md-on-surface);
+    color: var(--md-surface);
+    font-weight: 600;
+    cursor: default;
+}
+.products-pager-btn.disabled {
+    opacity: .4;
+    pointer-events: none;
+}
+.products-pager-ellipsis {
+    padding: 0 2px;
+    color: var(--md-on-surface-variant);
+    font-size: 13px;
+}
+
+.products-perpage {
+    position: relative;
+}
+.products-perpage-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-shape-xs);
+    background: var(--md-surface);
+    color: var(--md-on-surface);
+    font-size: 13px;
+    cursor: pointer;
+}
+.products-perpage-btn:hover {
+    border-color: var(--md-outline);
+    background: var(--md-surface-container-high);
+}
+.products-perpage-btn i {
+    font-size: 10px;
+    color: var(--md-on-surface-variant);
+}
+.products-perpage-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
+    min-width: 140px;
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-shape-sm);
+    box-shadow: var(--md-elev-2, 0 4px 16px rgba(0,0,0,.14));
+    padding: 6px;
+    z-index: 20;
+}
+.products-perpage-menu.open {
+    display: block;
+}
+.products-perpage-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: var(--md-shape-xs);
+    font-size: 13px;
+    color: var(--md-on-surface);
+    cursor: pointer;
+}
+.products-perpage-option:hover {
+    background: var(--md-surface-container-high);
+}
+.products-perpage-option input[type="radio"] {
+    accent-color: var(--md-primary);
+    margin: 0;
+}
