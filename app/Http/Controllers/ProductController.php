@@ -122,14 +122,17 @@ class ProductController extends Controller
             return ['rel' => $c->diffForHumans(), 'exact' => $c->isoFormat('D MMM YYYY, HH:mm')];
         };
         $freshness = [
-            ['label' => 'Stok, HPP & PO', 'hint' => 'dari Jubelio'] + $freshFmt(
+            ['label' => 'Stok, PO & HPP', 'hint' => 'dari Jubelio'] + $freshFmt(
                 DB::table('jubelio_inventory')->max(DB::raw('COALESCE(synced_at, updated_at)'))
             ),
-            ['label' => 'Harga diskon', 'hint' => 'scrape Tokopedia'] + $freshFmt(
+            ['label' => 'Harga Promo', 'hint' => 'scrape Tokopedia'] + $freshFmt(
                 DB::table('store_sku_prices')->where('store_id', $storeId)->max(DB::raw('COALESCE(synced_at, updated_at)'))
             ),
-            ['label' => 'ID Produk/SKU TikTok', 'hint' => 'import TikTok Seller Center'] + $freshFmt(
-                DB::table('tiktok_listings')->where('store_id', $storeId)->max(DB::raw('COALESCE(synced_at, updated_at)'))
+            ['label' => 'Product ID TikTok', 'hint' => 'import TikTok Seller Center'] + $freshFmt(
+                DB::table('tiktok_listings')->where('store_id', $storeId)->max('created_at')
+            ),
+            ['label' => 'SKU ID TikTok', 'hint' => 'import TikTok Seller Center'] + $freshFmt(
+                DB::table('tiktok_listing_skus')->where('store_id', $storeId)->max('created_at')
             ),
         ];
 
