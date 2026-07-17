@@ -26,7 +26,6 @@
                 <th class="text-end" style="width:100px">Total Stok</th>
                 <th>Harga Normal</th>
                 <th>Harga Promo</th>
-                <th class="text-center" style="width:80px">Aksi</th>
             </tr>
         </thead>
         <tbody>
@@ -66,16 +65,10 @@
                             <i class="bi bi-pencil" style="font-size:12px"></i>
                         </button>
                     </td>
-                    <td class="text-center">
-                        <a href="{{ route('product-ads.index', ['create_sku' => $m->primary_parent ?? '']) }}"
-                           class="btn-md-icon" title="Iklankan produk ini">
-                            <i class="bi bi-megaphone"></i>
-                        </a>
-                    </td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" style="padding:48px 24px;text-align:center">
+                    <td colspan="7" style="padding:48px 24px;text-align:center">
                         <i class="bi bi-inbox d-block mb-3" style="font-size:2.5rem;color:var(--md-outline)"></i>
                         <p class="mb-1" style="font-size:15px;font-weight:500;color:var(--md-on-surface)">Tidak Ada Produk</p>
                         <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">

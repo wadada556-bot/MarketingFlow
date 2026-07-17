@@ -105,9 +105,9 @@
         const tr = document.createElement('tr');
         tr.className = 'js-detail-row';
         const td = document.createElement('td');
-        td.colSpan = 8;
+        td.colSpan = 7;
         td.style.background = 'var(--md-surface-container-low)';
-        // (kolom header: expand, SKU Induk, Product ID, Varian, Total Stok, Harga Normal, Harga Promo, Aksi)
+        // (kolom header: expand, SKU Induk, Product ID, Varian, Total Stok, Harga Normal, Harga Promo)
         td.innerHTML = '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Memuat varian…</div>';
         tr.appendChild(td);
         row.after(tr);
