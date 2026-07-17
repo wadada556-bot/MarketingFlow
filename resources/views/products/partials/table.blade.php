@@ -20,7 +20,9 @@
         <thead>
             <tr>
                 <th>Produk</th>
-                <th class="text-end" style="width:170px">Total Stok</th>
+                <th class="text-end" style="width:100px">Total Stok</th>
+                <th class="text-end" style="width:100px">Total PO</th>
+                <th class="text-end" style="width:150px">HPP</th>
                 <th class="text-end" style="width:200px">Harga Jual</th>
             </tr>
         </thead>
@@ -41,14 +43,14 @@
                             </div>
                         </div>
                     </td>
+                    <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">
+                        {{ number_format((int) $row->total_stok, 0, ',', '.') }}
+                    </td>
+                    <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">
+                        {{ number_format((int) $row->total_po, 0, ',', '.') }}
+                    </td>
                     <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface);white-space:nowrap">
-                        <div>{{ number_format((int) $row->total_stok, 0, ',', '.') }}</div>
-                        <div style="font-size:11.5px;color:var(--md-on-surface-variant);margin-top:2px">
-                            PO: {{ number_format((int) $row->total_po, 0, ',', '.') }}
-                        </div>
-                        <div style="font-size:11.5px;color:var(--md-on-surface-variant)">
-                            HPP: {!! $fmtRange($m->hpp_min ?? null, $m->hpp_max ?? null) !!}
-                        </div>
+                        {!! $fmtRange($m->hpp_min ?? null, $m->hpp_max ?? null) !!}
                     </td>
                     <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface);white-space:nowrap">
                         <div>{!! $fmtRange($m->retail_min ?? null, $m->retail_max ?? null) !!}</div>
@@ -64,7 +66,7 @@
                     </td>
                 </tr>
                 <tr class="products-subrow" data-product-id="{{ $row->product_id }}">
-                    <td colspan="3">
+                    <td colspan="5">
                         <div class="products-subrow-inner">
                             <span class="products-subrow-count">{{ number_format($row->variant_count, 0, ',', '.') }} SKU</span>
                             <button type="button" class="products-subrow-toggle js-expand"
@@ -77,7 +79,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="3" style="padding:48px 24px;text-align:center">
+                    <td colspan="5" style="padding:48px 24px;text-align:center">
                         <i class="bi bi-inbox d-block mb-3" style="font-size:2.5rem;color:var(--md-outline)"></i>
                         <p class="mb-1" style="font-size:15px;font-weight:500;color:var(--md-on-surface)">Tidak Ada Produk</p>
                         <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">

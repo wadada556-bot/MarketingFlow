@@ -108,9 +108,9 @@
         const tr = document.createElement('tr');
         tr.className = 'js-detail-row';
         const td = document.createElement('td');
-        td.colSpan = 3;
+        td.colSpan = 5;
         td.style.background = 'var(--md-surface-container-low)';
-        // (kolom header: Produk, Total Stok, Harga Jual)
+        // (kolom header: Produk, Total Stok, Total PO, HPP, Harga Jual)
         td.innerHTML = '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Memuat varian…</div>';
         tr.appendChild(td);
         subrow.after(tr);
