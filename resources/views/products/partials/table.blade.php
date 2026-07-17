@@ -19,7 +19,7 @@
     <table class="md-table table-hover align-middle">
         <thead>
             <tr>
-                <th style="width:640px">Produk</th>
+                <th>Produk</th>
                 <th class="text-end" style="width:110px">Total Stok</th>
                 <th class="text-end" style="width:100px">Total PO</th>
                 <th class="text-end" style="width:170px">HPP</th>

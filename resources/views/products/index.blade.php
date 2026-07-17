@@ -34,11 +34,19 @@
         ? 'Rp' + num(h)
         : '<span style="color:var(--md-on-surface-variant)">-</span>';
 
-    function buildDetail(d) {
+    function buildDetail(d, cols) {
         const variants = d.variants || [];
         if (!variants.length) {
             return '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Tidak ada varian.</div>';
         }
+        // Semua lebar kolom (termasuk Varian/Product ID/SKU ID) dihitung DI LUAR
+        // fungsi ini dari geometri nyata baris induk (lihat computeDetailCols),
+        // lalu lebar tabel dikunci persis = jumlahnya — supaya table-layout:fixed
+        // tak punya sisa/kekurangan ruang utk didistribusikan ulang (itu yg
+        // sebelumnya bikin kolom Stok/PO/HPP/Harga Jual melenceng dari baris induk
+        // di lebar layar yg berbeda dari saat pertama kali diuji).
+        const w = cols || {varian:240, productId:170, skuId:170, stok:110, po:100, hpp:170, harga:220, aksi:110};
+        const total = w.varian + w.productId + w.skuId + w.stok + w.po + w.hpp + w.harga + w.aksi;
         const rows = variants.map(v => `
             <tr>
                 <td style="font-size:13px">
@@ -73,13 +81,13 @@
                 </td>
             </tr>`).join('');
         return `<div style="padding:16px 16px 8px 44px;overflow-x:auto">
-            <table class="table align-middle mb-0" style="table-layout:fixed;width:1290px">
+            <table class="table align-middle mb-0" style="table-layout:fixed;width:${total}px">
               <colgroup>
-                <col style="width:240px">
-                <col style="width:170px"><col style="width:170px">
-                <col style="width:110px"><col style="width:100px">
-                <col style="width:170px"><col style="width:220px">
-                <col style="width:110px">
+                <col style="width:${w.varian}px">
+                <col style="width:${w.productId}px"><col style="width:${w.skuId}px">
+                <col style="width:${w.stok}px"><col style="width:${w.po}px">
+                <col style="width:${w.hpp}px"><col style="width:${w.harga}px">
+                <col style="width:${w.aksi}px">
               </colgroup>
               <thead><tr style="color:var(--md-on-surface-variant);font-size:12px">
                 <th>Varian</th><th>Product ID</th><th>SKU ID</th>
@@ -89,6 +97,41 @@
               </tr></thead>
               <tbody>${rows}</tbody>
             </table></div>`;
+    }
+
+    // Hitung lebar tiap kolom tabel detail dari geometri NYATA baris induk
+    // (bukan CSS auto-layout, yg terbukti tak stabil lintas lebar layar).
+    // Stok/PO/HPP/Harga Jual = persis sama dgn kolom yg sama di baris induk.
+    // Varian+Product ID+SKU ID (gabungan) = persis sebesar kolom "Produk" pada
+    // baris induk, dihitung dari selisih X target Stok dgn X awal tabel detail
+    // (indent), lalu dibagi 3 dgn Product ID/SKU ID diprioritaskan 170px dan
+    // sisanya ke Varian — supaya kolom Stok di bawahnya mulai persis di X yg
+    // sama dgn "Total Stok" pada baris induk, di lebar layar berapa pun.
+    function computeDetailCols(catalogRow, tdEl) {
+        const cells = catalogRow ? catalogRow.children : [];
+        const rect  = (i) => cells[i] ? cells[i].getBoundingClientRect() : null;
+        const rStok = rect(1), rPo = rect(2), rHpp = rect(3), rHarga = rect(4);
+        const stok  = rStok  ? Math.round(rStok.width)  : 110;
+        const po    = rPo    ? Math.round(rPo.width)    : 100;
+        const hpp   = rHpp   ? Math.round(rHpp.width)   : 170;
+        const harga = rHarga ? Math.round(rHarga.width) : 220;
+        const aksi  = 110;
+
+        // Indent = X awal tabel detail (kiri td + padding wrapper 44px kiri).
+        const tdRect = tdEl.getBoundingClientRect();
+        const indentLeft = tdRect.left + 16 /* td padding */ + 44 /* wrapper padding */;
+        const targetStokLeft = rStok ? rStok.left : null;
+        let leading = targetStokLeft !== null ? (targetStokLeft - indentLeft) : 580;
+        leading = Math.max(80, Math.round(leading));
+
+        let productId = 170, skuId = 170, varian = leading - productId - skuId;
+        if (varian < 40) {
+            // Kolom Produk baris induk sempit (nama produk pendek) — sisakan
+            // Varian min 40px, sisanya dibagi rata ke Product ID/SKU ID.
+            varian = 40;
+            productId = skuId = Math.max(30, Math.round((leading - varian) / 2));
+        }
+        return {varian, productId, skuId, stok, po, hpp, harga, aksi};
     }
 
     document.addEventListener('click', function (e) {
@@ -111,6 +154,8 @@
             return;
         }
 
+        const catalogRow = subrow.previousElementSibling;
+
         // Buat baris detail + fetch lazy
         const tr = document.createElement('tr');
         tr.className = 'js-detail-row';
@@ -123,10 +168,15 @@
         subrow.after(tr);
         setToggleState(true);
 
+        // Ukur geometri SETELAH td disisipkan (colspan=5 langsung dpt lebar
+        // baris penuh terlepas dari isinya), tapi SEBELUM konten varian
+        // memenuhinya, supaya catalogRow jg belum sempat bergeser.
+        const cols = computeDetailCols(catalogRow, td);
+
         const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(subrow.dataset.productId)}&store_id=${STORE_ID ?? ''}${HPP_EMPTY ? '&hpp_empty=1' : ''}`;
         fetch(url)
             .then(r => r.json())
-            .then(d => { td.innerHTML = buildDetail(d); })
+            .then(d => { td.innerHTML = buildDetail(d, cols); })
             .catch(() => { td.innerHTML = '<div style="padding:16px 44px;color:var(--md-error);font-size:13px">Gagal memuat varian.</div>'; });
     });
 
