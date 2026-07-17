@@ -20,8 +20,8 @@
             <i class="bi bi-graph-up-arrow" style="font-size:16px;color:var(--md-on-primary-container)"></i>
         </div>
         <div>
-            <p style="font-size:15px;font-weight:600;color:var(--md-on-surface);margin:0;letter-spacing:.1px">Marketing Flow</p>
-            <p style="font-size:11px;color:var(--md-on-surface-variant);margin:0;letter-spacing:.3px">Ad Management</p>
+            <p style="font-size:15px;font-weight:600;color:var(--md-on-surface);margin:0;letter-spacing:.1px">Beverra Collection</p>
+            <p style="font-size:11px;color:var(--md-on-surface-variant);margin:0;letter-spacing:.3px">Tim Marketing</p>
         </div>
     </div>
 
