@@ -3,6 +3,7 @@
 @section('title', 'Products')
 
 @push('styles')
+    <link rel="stylesheet" href="{{ asset('css/products.css') }}?v={{ filemtime(public_path('css/products.css')) }}">
     <style>
         .pagination-wrapper nav > div:first-child { display: none !important; }
         .pagination-wrapper nav { margin-bottom: 0 !important; }
@@ -40,30 +41,27 @@
         }
         const rows = variants.map(v => `
             <tr>
-                <td style="font-size:13px">${dash(v.product_id)}</td>
-                <td style="font-size:13px">${dash(v.sku_id)}</td>
-                <td style="font-size:13px">${v.sku}</td>
-                <td style="font-size:13px;color:var(--md-on-surface-variant)">${v.label ?? '-'}</td>
+                <td style="font-size:13px">
+                    <p class="mb-0 fw-medium" style="color:var(--md-on-surface)">${v.label ?? v.sku}</p>
+                    <p class="mb-0" style="font-size:11.5px;color:var(--md-on-surface-variant)">${v.sku}</p>
+                </td>
+                <td style="font-size:12.5px;color:var(--md-on-surface-variant)">${dash(v.product_id)}</td>
+                <td style="font-size:12.5px;color:var(--md-on-surface-variant)">${dash(v.sku_id)}</td>
                 <td class="text-end" style="font-size:13px">${num(v.stok)}</td>
                 <td class="text-end" style="font-size:13px">${num(v.po)}</td>
                 <td class="text-end" style="font-size:13px;white-space:nowrap">
-                    <span class="js-hpp-val">${hppDisplay(v.hpp)}</span>
-                    <button type="button" class="js-hpp-edit"
-                            data-sku="${encodeURIComponent(v.sku)}" data-hpp="${v.hpp}"
-                            title="Isi / ubah HPP"
-                            style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:0 2px;margin-left:4px;cursor:pointer">
-                        <i class="bi bi-pencil" style="font-size:12px"></i>
-                    </button>
+                    <span class="products-field js-hpp-edit" data-sku="${encodeURIComponent(v.sku)}" data-hpp="${v.hpp}" title="Isi / ubah HPP">
+                        <span class="js-hpp-val">${hppDisplay(v.hpp)}</span>
+                        <i class="bi bi-pencil"></i>
+                    </span>
                 </td>
-                <td class="text-end" style="font-size:13px">${rupiah(v.retail)}</td>
                 <td class="text-end" style="font-size:13px;white-space:nowrap">
-                    <span class="js-promo-val">${rupiah(v.promo)}</span>
-                    <button type="button" class="js-price-edit"
-                            data-sku="${encodeURIComponent(v.sku)}" data-promo="${v.promo ?? 0}"
-                            title="Ubah harga promo"
-                            style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:0 2px;margin-left:4px;cursor:pointer">
-                        <i class="bi bi-pencil" style="font-size:12px"></i>
-                    </button>
+                    <div>${rupiah(v.retail)}</div>
+                    <span class="products-field js-price-edit" data-sku="${encodeURIComponent(v.sku)}" data-promo="${v.promo ?? 0}" title="Ubah harga promo" style="margin-top:2px">
+                        <span style="font-size:11px;color:var(--md-on-surface-variant)">Promo:</span>
+                        <span class="js-promo-val">${rupiah(v.promo)}</span>
+                        <i class="bi bi-pencil"></i>
+                    </span>
                 </td>
                 <td class="text-center">
                     <button type="button" class="btn btn-sm js-price-history d-inline-flex align-items-center gap-1"
@@ -77,9 +75,9 @@
         return `<div style="padding:16px 8px 8px 44px;overflow-x:auto">
             <table class="table align-middle mb-0">
               <thead><tr style="color:var(--md-on-surface-variant);font-size:12px">
-                <th>Product ID</th><th>SKU ID</th><th>Seller SKU</th><th>Variasi</th>
+                <th>Varian</th><th>Product ID</th><th>SKU ID</th>
                 <th class="text-end">Stok</th><th class="text-end">PO</th>
-                <th class="text-end">HPP</th><th class="text-end">Harga Normal</th><th class="text-end">Harga Promo</th>
+                <th class="text-end">HPP</th><th class="text-end">Harga Jual</th>
                 <th class="text-center">Aksi</th>
               </tr></thead>
               <tbody>${rows}</tbody>
@@ -105,9 +103,9 @@
         const tr = document.createElement('tr');
         tr.className = 'js-detail-row';
         const td = document.createElement('td');
-        td.colSpan = 7;
+        td.colSpan = 5;
         td.style.background = 'var(--md-surface-container-low)';
-        // (kolom header: expand, SKU Induk, Product ID, Varian, Total Stok, Harga Normal, Harga Promo)
+        // (kolom header: expand, Produk, Varian, Total Stok, Harga Jual)
         td.innerHTML = '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Memuat varian…</div>';
         tr.appendChild(td);
         row.after(tr);
@@ -320,47 +318,55 @@
 
 @section('content')
 
-    <div class="md-page-header">
-        <div>
-            <h1>Products</h1>
-            <p class="subtitle">Katalog produk dari Jubelio — stok &amp; harga per toko</p>
+    <div class="products-sticky-header">
+        {{-- Judul + kebaruan data disatukan dalam satu blok setinggi 72px,
+             sejajar dgn header "Marketing Flow" di sidebar. --}}
+        <div class="products-title-block">
+            <div style="min-width:0">
+                <h1>Products</h1>
+
+                {{-- Kebaruan data per sumber (toko terpilih) — cek sebelum export.
+                     Hover tiap item untuk tanggal & jam pasti. --}}
+                <div class="products-freshness-row d-flex align-items-center gap-2">
+                    <span class="d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-clock-history"></i> Diperbarui
+                    </span>
+                    @foreach($freshness as $f)
+                        <span class="d-inline-flex align-items-center gap-1"
+                              style="background:var(--md-surface-container-high);border-radius:var(--md-shape-xs);padding:2px 10px"
+                              title="{{ $f['label'] }} ({{ $f['hint'] }}){{ $f['exact'] ? ' — ' . $f['exact'] : '' }}">
+                            <strong style="color:var(--md-on-surface);font-weight:500">{{ $f['label'] }}:</strong>
+                            {{ $f['rel'] }}
+                        </span>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Export seluruh listing+varian toko terpilih ke .xlsx --}}
+            <a href="{{ route('products.export', ['store_id' => $storeId]) }}"
+               class="products-export-btn" style="flex-shrink:0"
+               title="Export semua data toko ini ke Excel">
+                <i class="bi bi-download"></i>
+            </a>
         </div>
-    </div>
 
-    {{-- Kebaruan data per sumber (toko terpilih) — cek sebelum export.
-         Hover tiap item untuk tanggal & jam pasti. --}}
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-3"
-         style="font-size:12.5px;color:var(--md-on-surface-variant)">
-        <span class="d-inline-flex align-items-center gap-1">
-            <i class="bi bi-clock-history"></i> Diperbarui
-        </span>
-        @foreach($freshness as $f)
-            <span class="d-inline-flex align-items-center gap-1"
-                  style="background:var(--md-surface-container-high);border-radius:var(--md-shape-xs);padding:2px 10px"
-                  title="{{ $f['label'] }} ({{ $f['hint'] }}){{ $f['exact'] ? ' — ' . $f['exact'] : '' }}">
-                <strong style="color:var(--md-on-surface);font-weight:500">{{ $f['label'] }}:</strong>
-                {{ $f['rel'] }}
-            </span>
-        @endforeach
-    </div>
+        @include('components.alert')
 
-    @include('components.alert')
-
-    <form method="GET" action="{{ route('products.index') }}" class="mb-3 d-flex flex-wrap align-items-center gap-2" autocomplete="off">
+        <form method="GET" action="{{ route('products.index') }}" class="products-filter-row mb-0 d-flex flex-wrap align-items-center gap-2" autocomplete="off">
         {{-- Pencarian SKU induk --}}
         <div class="input-group" style="max-width:340px;flex:1 1 240px">
             <span class="input-group-text"
-                  style="background:var(--md-surface);border-color:var(--md-outline);border-right:0;border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs)">
-                <i class="bi bi-search" style="color:var(--md-on-surface-variant);font-size:14px"></i>
+                  style="background:var(--md-surface-container-high);border-color:var(--md-outline);border-right:0;border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs);color:var(--md-on-surface-variant)">
+                <i class="bi bi-search" style="font-size:14px"></i>
             </span>
             <input type="text" name="search" value="{{ $search ?? '' }}"
                    class="form-control"
                    placeholder="Cari SKU induk…"
-                   style="border-color:var(--md-outline);border-left:0;border-right:{{ !empty($search) ? '0' : '' }};font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
+                   style="border-color:var(--md-outline);border-left:0;border-right:{{ !empty($search) ? '0' : '' }};font-size:13.5px;background:transparent;color:var(--md-on-surface)">
             @if(!empty($search))
                 <a href="{{ route('products.index', array_filter(['store_id' => $storeId, 'hpp_empty' => $hppEmpty ? 1 : null])) }}"
                    class="input-group-text"
-                   style="background:var(--md-surface);border-color:var(--md-outline);border-left:0;border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;color:var(--md-on-surface-variant);text-decoration:none"
+                   style="background:transparent;border-color:var(--md-outline);border-left:0;border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;color:var(--md-on-surface-variant);text-decoration:none"
                    title="Hapus pencarian">
                     <i class="bi bi-x-lg" style="font-size:12px"></i>
                 </a>
@@ -376,7 +382,7 @@
                 </span>
                 <select name="store_id" class="form-select" onchange="this.form.submit()"
                         title="Pilih toko untuk melihat harga"
-                        style="border-color:var(--md-outline);border-left:0;border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;font-size:13.5px;font-weight:500;min-width:180px;background:var(--md-surface);color:var(--md-on-surface)">
+                        style="border-color:var(--md-outline);border-left:0;border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;font-size:13.5px;font-weight:500;min-width:180px;background:transparent;color:var(--md-on-surface)">
                     @foreach($stores as $store)
                         <option value="{{ $store->id }}" @selected($storeId == $store->id)>
                             {{ ucwords($store->name) }}
@@ -389,25 +395,17 @@
         {{-- Filter chip: hanya listing yang punya varian ber-HPP belum terisi --}}
         <label class="btn d-inline-flex align-items-center gap-2 m-0"
                title="Tampilkan hanya produk yang masih ada HPP kosong (mis. bundling)"
-               style="border:1px solid {{ $hppEmpty ? 'var(--md-primary)' : 'var(--md-outline)' }};
-                      background:{{ $hppEmpty ? 'var(--md-secondary-container)' : 'var(--md-surface)' }};
-                      color:{{ $hppEmpty ? 'var(--md-on-secondary-container)' : 'var(--md-on-surface)' }};
+               style="border:1px solid {{ $hppEmpty ? 'var(--md-tertiary)' : 'var(--md-outline)' }};
+                      background:{{ $hppEmpty ? 'var(--md-tertiary-container)' : 'transparent' }};
+                      color:{{ $hppEmpty ? 'var(--md-on-tertiary-container)' : 'var(--md-on-surface)' }};
                       border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:{{ $hppEmpty ? 600 : 400 }}">
             <input type="checkbox" name="hpp_empty" value="1" onchange="this.form.submit()" @checked($hppEmpty) class="d-none">
-            <i class="bi {{ $hppEmpty ? 'bi-funnel-fill' : 'bi-funnel' }}" style="font-size:13px"></i>
-            HPP belum terisi
+            <i class="bi bi-cash-stack" style="font-size:13px"></i>
+            HPP
             @if($hppEmpty)<i class="bi bi-check-lg" style="font-size:14px"></i>@endif
         </label>
-
-        {{-- Export seluruh listing+varian toko terpilih ke .xlsx (aksi → dorong ke kanan) --}}
-        <a href="{{ route('products.export', ['store_id' => $storeId]) }}"
-           class="btn d-inline-flex align-items-center gap-2 ms-auto"
-           title="Export semua data toko ini ke Excel"
-           style="background:var(--md-secondary-container);color:var(--md-on-secondary-container);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500">
-            <i class="bi bi-file-earmark-excel" style="font-size:15px"></i>
-            Export
-        </a>
     </form>
+    </div>
 
     @include('products.partials.table', ['catalog' => $catalog, 'meta' => $meta])
 

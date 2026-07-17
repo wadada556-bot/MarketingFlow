@@ -1,0 +1,126 @@
+/* ── Halaman Products: menyatu dgn sidebar, header lock di atas ── */
+.page-products-index .page-content {
+    max-width: none;
+    padding: 0 20px 20px;
+}
+
+.products-sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: 0 -20px 16px;
+    padding: 0 20px 14px;
+    background: var(--md-surface-container-lowest);
+}
+/* Tinggi disamakan dengan header sidebar (72px) supaya sejajar & menyatu */
+.products-title-block {
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid var(--md-outline-variant);
+}
+.products-title-block > div:first-child {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+}
+.products-title-block h1 {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--md-on-surface);
+    margin: 0;
+    line-height: 1.2;
+    letter-spacing: .1px;
+}
+.products-freshness-row {
+    font-size: 12.5px;
+    color: var(--md-on-surface-variant);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+}
+.products-freshness-row::-webkit-scrollbar { display: none; }
+.products-freshness-row > span { flex-shrink: 0; }
+
+/* Tombol Export — icon besar dalam bentuk button (bukan sekadar glyph) */
+.products-export-btn {
+    width: 46px;
+    height: 46px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--md-secondary-container);
+    color: var(--md-on-secondary-container);
+    border: none;
+    border-radius: var(--md-shape-sm);
+    font-size: 22px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: box-shadow .15s, filter .15s;
+}
+.products-export-btn:hover {
+    color: var(--md-on-secondary-container);
+    filter: brightness(.96);
+    box-shadow: var(--md-elev-1);
+}
+.products-filter-row {
+    padding-top: 12px;
+}
+
+/* Tabel: hilangkan bingkai kartu supaya menyatu dgn background sidebar/header */
+.page-products-index .md-table-wrap {
+    border: none;
+    border-radius: 0;
+}
+
+/* Placeholder thumbnail produk (tak ada sumber gambar di data Jubelio/TikTok —
+   kotak ikon netral memberi bobot visual yang sama tanpa memalsukan data). */
+.products-thumb {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--md-shape-xs);
+    background: var(--md-surface-container-high);
+    color: var(--md-on-surface-variant);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+}
+
+/* Nilai yang bisa diedit (HPP, harga promo) ditampilkan sbg "field" ringan
+   agar terlihat interaktif — dibuka lewat modal, bukan input inline (Stok
+   tak bisa diedit di sini karena dikelola oleh sync Jubelio, jadi tetap teks biasa). */
+.products-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--md-surface-container-high);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--md-shape-xs);
+    padding: 2px 7px;
+    cursor: pointer;
+    transition: border-color .12s, background .12s;
+}
+.products-field:hover {
+    border-color: var(--md-primary);
+    background: var(--md-surface-container-highest, var(--md-surface-container-high));
+}
+.products-field i.bi-pencil {
+    font-size: 10.5px;
+    color: var(--md-on-surface-variant);
+}
+
+.page-products-index .js-catalog-row:hover {
+    background: var(--md-surface-container-low);
+}
+
+/* Rapikan kolom angka/harga — rata kanan konsisten dgn Total Stok */
+.page-products-index .md-table th.text-end,
+.page-products-index .md-table td.text-end {
+    text-align: right;
+}
