@@ -11,7 +11,7 @@
     ));
 @endphp
 <div class="stock-sticky-header">
-    <div style="display:flex;justify-content:space-between;align-items:center;{{ (!$stockApiUnavailable && !empty($stockAlerts)) ? 'margin-bottom:16px' : '' }}">
+    <div class="stock-title-row">
         <div>
             <p class="dash-section-title">Peringatan Stok</p>
             <p class="dash-section-subtitle">Produk butuh perhatian</p>

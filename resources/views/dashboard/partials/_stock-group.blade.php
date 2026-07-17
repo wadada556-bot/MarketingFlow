@@ -52,7 +52,7 @@
         </div>
     </div>
     <div id="stock-body-{{ $uid }}" class="stock-group-body">
-        <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="display:grid;grid-template-columns:max-content max-content max-content;row-gap:4px;width:fit-content;max-width:100%">
             @foreach($alert['variants'] as $variant)
                 @php
                     $vDanger      = $variant['status'] === 'danger';
@@ -61,43 +61,57 @@
                     $vPoQty       = $variant['po_qty'] ?? null;
                     $isBestSeller = $vRank !== null;
                     $missingPo    = $isBestSeller && $vPoQty === null;
+                    $rowBg        = $missingPo ? 'rgba(255,222,170,.35)' : 'var(--md-surface-container-low)';
+                    $rowBorder    = $missingPo ? '1px solid rgba(122,88,0,.25)' : '1px solid transparent';
                 @endphp
+                {{-- Kolom 1: SKU + badges --}}
                 <div style="
-                    display:flex;justify-content:space-between;align-items:center;
-                    padding:6px 8px;gap:8px;
-                    border-radius:var(--md-shape-xs);
-                    {{ $missingPo
-                        ? 'background:rgba(255,222,170,.35);border:1px solid rgba(122,88,0,.25);'
-                        : 'background:var(--md-surface-container-low);' }}
+                    display:flex;align-items:center;gap:5px;
+                    padding:6px 8px 6px 10px;
+                    background:{{ $rowBg }};
+                    border-top:{{ $rowBorder }};border-bottom:{{ $rowBorder }};border-left:{{ $rowBorder }};
+                    border-radius:var(--md-shape-xs) 0 0 var(--md-shape-xs);
                 ">
-                    <div style="min-width:0;flex:1;display:flex;align-items:center;gap:5px;overflow:hidden">
-                        <span style="font-size:12px;font-family:monospace;color:var(--md-on-surface);
-                                     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $variant['sku'] }}</span>
-                        @if($vRank === 1)
-                            <span style="flex-shrink:0;font-size:10px;font-weight:700;background:#FFD700;color:#5a4000;padding:1px 5px;border-radius:20px;white-space:nowrap">🥇 #1</span>
-                        @elseif($vRank === 2)
-                            <span style="flex-shrink:0;font-size:10px;font-weight:700;background:#C0C0C0;color:#3a3a3a;padding:1px 5px;border-radius:20px;white-space:nowrap">🥈 #2</span>
-                        @elseif($vRank === 3)
-                            <span style="flex-shrink:0;font-size:10px;font-weight:700;background:#CD7F32;color:#fff;padding:1px 5px;border-radius:20px;white-space:nowrap">🥉 #3</span>
-                        @endif
-                        @if($missingPo)
-                            <span style="flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.3px;
-                                         background:var(--md-warning-container);color:var(--md-on-warning-container);
-                                         padding:1px 6px;border-radius:20px;white-space:nowrap;text-transform:uppercase">
-                                ⚠ Belum PO
-                            </span>
-                        @endif
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-                        @if($vPoQty !== null)
-                            <span style="font-size:11px;color:var(--md-primary);font-weight:600;white-space:nowrap">
-                                PO {{ number_format($vPoQty) }}
-                            </span>
-                        @endif
-                        <span class="md-chip {{ $vDanger ? 'error' : ($vWarn ? 'warning' : 'primary') }}" style="font-size:11px;min-width:52px;text-align:center">
-                            {{ number_format($variant['qty']) }} pcs
+                    <span style="font-size:12px;font-family:monospace;color:var(--md-on-surface);white-space:nowrap;">{{ $variant['sku'] }}</span>
+                    @if($vRank === 1)
+                        <span style="flex-shrink:0;font-size:10px;font-weight:700;background:#FFD700;color:#5a4000;padding:1px 5px;border-radius:20px;white-space:nowrap">🥇 #1</span>
+                    @elseif($vRank === 2)
+                        <span style="flex-shrink:0;font-size:10px;font-weight:700;background:#C0C0C0;color:#3a3a3a;padding:1px 5px;border-radius:20px;white-space:nowrap">🥈 #2</span>
+                    @elseif($vRank === 3)
+                        <span style="flex-shrink:0;font-size:10px;font-weight:700;background:#CD7F32;color:#fff;padding:1px 5px;border-radius:20px;white-space:nowrap">🥉 #3</span>
+                    @endif
+                    @if($missingPo)
+                        <span style="flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.3px;
+                                     background:var(--md-warning-container);color:var(--md-on-warning-container);
+                                     padding:1px 6px;border-radius:20px;white-space:nowrap;text-transform:uppercase">
+                            ⚠ Belum PO
                         </span>
-                    </div>
+                    @endif
+                </div>
+                {{-- Kolom 2: PO --}}
+                <div style="
+                    display:flex;align-items:center;justify-content:flex-end;
+                    padding:6px 8px;
+                    background:{{ $rowBg }};
+                    border-top:{{ $rowBorder }};border-bottom:{{ $rowBorder }};
+                ">
+                    @if($vPoQty !== null)
+                        <span style="font-size:11px;color:var(--md-primary);font-weight:600;white-space:nowrap">
+                            PO {{ number_format($vPoQty) }}
+                        </span>
+                    @endif
+                </div>
+                {{-- Kolom 3: qty --}}
+                <div style="
+                    display:flex;align-items:center;
+                    padding:6px 10px 6px 8px;
+                    background:{{ $rowBg }};
+                    border-top:{{ $rowBorder }};border-bottom:{{ $rowBorder }};border-right:{{ $rowBorder }};
+                    border-radius:0 var(--md-shape-xs) var(--md-shape-xs) 0;
+                ">
+                    <span class="md-chip {{ $vDanger ? 'error' : ($vWarn ? 'warning' : 'primary') }}" style="font-size:11px;min-width:52px;text-align:center">
+                        {{ number_format($variant['qty']) }} pcs
+                    </span>
                 </div>
             @endforeach
         </div>

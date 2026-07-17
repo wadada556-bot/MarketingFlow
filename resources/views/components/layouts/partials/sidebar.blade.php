@@ -2,7 +2,7 @@
 
     {{-- ── Drawer Header ──────────────────────────────────── --}}
     <div style="
-        height: 64px;
+        height: 72px;
         display: flex;
         align-items: center;
         padding: 0 20px;
