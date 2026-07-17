@@ -87,15 +87,20 @@
     document.addEventListener('click', function (e) {
         const btn = e.target.closest('.js-expand');
         if (!btn) return;
-        const row  = btn.closest('.js-catalog-row');
-        const next = row.nextElementSibling;
+        const subrow = btn.closest('.products-subrow');
+        const next   = subrow.nextElementSibling;
+
+        const setToggleState = (open) => {
+            btn.setAttribute('aria-expanded', String(open));
+            btn.querySelector('.js-expand-label').textContent = open ? 'Tutup' : 'Buka';
+            btn.querySelector('.js-expand-icon').className = 'bi js-expand-icon ' + (open ? 'bi-chevron-up' : 'bi-chevron-down');
+        };
 
         // Toggle bila detail sudah ada
         if (next && next.classList.contains('js-detail-row')) {
             const open = next.style.display !== 'none';
             next.style.display = open ? 'none' : '';
-            btn.setAttribute('aria-expanded', String(!open));
-            btn.style.transform = open ? '' : 'rotate(90deg)';
+            setToggleState(!open);
             return;
         }
 
@@ -103,16 +108,15 @@
         const tr = document.createElement('tr');
         tr.className = 'js-detail-row';
         const td = document.createElement('td');
-        td.colSpan = 5;
+        td.colSpan = 3;
         td.style.background = 'var(--md-surface-container-low)';
-        // (kolom header: expand, Produk, Varian, Total Stok, Harga Jual)
+        // (kolom header: Produk, Total Stok, Harga Jual)
         td.innerHTML = '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Memuat varian…</div>';
         tr.appendChild(td);
-        row.after(tr);
-        btn.setAttribute('aria-expanded', 'true');
-        btn.style.transform = 'rotate(90deg)';
+        subrow.after(tr);
+        setToggleState(true);
 
-        const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(row.dataset.productId)}&store_id=${STORE_ID ?? ''}${HPP_EMPTY ? '&hpp_empty=1' : ''}`;
+        const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(subrow.dataset.productId)}&store_id=${STORE_ID ?? ''}${HPP_EMPTY ? '&hpp_empty=1' : ''}`;
         fetch(url)
             .then(r => r.json())
             .then(d => { td.innerHTML = buildDetail(d); })
@@ -214,8 +218,10 @@
                 // Varian terakhir listing ini terisi → hilangkan juga baris induk
                 // + baris detailnya dari tabel utama (tak lagi cocok filter).
                 if (!tbody.querySelector('tr')) {
-                    const catalogRow = detailRow ? detailRow.previousElementSibling : null;
+                    const subrow    = detailRow ? detailRow.previousElementSibling : null;
+                    const catalogRow = subrow ? subrow.previousElementSibling : null;
                     if (detailRow) detailRow.remove();
+                    if (subrow && subrow.classList.contains('products-subrow')) subrow.remove();
                     if (catalogRow && catalogRow.classList.contains('js-catalog-row')) catalogRow.remove();
                 }
             } else {
@@ -300,7 +306,8 @@
                     if (span) span.innerHTML = rupiah(d.promotion_price);
 
                     // Bila detail varian sudah ter-load, samakan tampilan tiap varian juga.
-                    const detailRow = row.nextElementSibling;
+                    const subrow    = row.nextElementSibling;
+                    const detailRow = subrow ? subrow.nextElementSibling : null;
                     if (detailRow && detailRow.classList.contains('js-detail-row')) {
                         detailRow.querySelectorAll('.js-promo-val').forEach(span => { span.innerHTML = rupiah(d.promotion_price); });
                         detailRow.querySelectorAll('.js-price-edit').forEach(btn => { btn.dataset.promo = d.promotion_price; });

@@ -19,9 +19,7 @@
     <table class="md-table table-hover align-middle">
         <thead>
             <tr>
-                <th style="width:44px"></th>
                 <th>Produk</th>
-                <th class="text-center" style="width:110px">Varian</th>
                 <th class="text-end" style="width:100px">Total Stok</th>
                 <th class="text-end" style="width:200px">Harga Jual</th>
             </tr>
@@ -30,13 +28,6 @@
             @forelse ($catalog as $row)
                 @php $m = ($meta ?? collect())->get($row->product_id); @endphp
                 <tr class="js-catalog-row" data-product-id="{{ $row->product_id }}">
-                    <td class="text-center">
-                        <button type="button" class="btn-md-icon js-expand"
-                                title="Lihat varian" aria-expanded="false"
-                                style="transition:transform .15s ease">
-                            <i class="bi bi-chevron-right"></i>
-                        </button>
-                    </td>
                     <td>
                         <div class="d-flex align-items-center gap-3">
                             <div class="products-thumb"><i class="bi bi-box-seam"></i></div>
@@ -49,9 +40,6 @@
                                 </p>
                             </div>
                         </div>
-                    </td>
-                    <td class="text-center">
-                        <span class="md-chip secondary">{{ number_format($row->variant_count, 0, ',', '.') }}</span>
                     </td>
                     <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">
                         {{ number_format((int) $row->total_stok, 0, ',', '.') }}
@@ -69,9 +57,21 @@
                         </div>
                     </td>
                 </tr>
+                <tr class="products-subrow" data-product-id="{{ $row->product_id }}">
+                    <td colspan="3">
+                        <div class="products-subrow-inner">
+                            <span class="products-subrow-count">{{ number_format($row->variant_count, 0, ',', '.') }} SKU</span>
+                            <button type="button" class="products-subrow-toggle js-expand"
+                                    title="Lihat varian" aria-expanded="false">
+                                <span class="js-expand-label">Buka</span>
+                                <i class="bi bi-chevron-down js-expand-icon"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
             @empty
                 <tr>
-                    <td colspan="5" style="padding:48px 24px;text-align:center">
+                    <td colspan="3" style="padding:48px 24px;text-align:center">
                         <i class="bi bi-inbox d-block mb-3" style="font-size:2.5rem;color:var(--md-outline)"></i>
                         <p class="mb-1" style="font-size:15px;font-weight:500;color:var(--md-on-surface)">Tidak Ada Produk</p>
                         <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">
