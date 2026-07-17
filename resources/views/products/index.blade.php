@@ -141,6 +141,33 @@
         return {varian, skuId, stok, po, hpp, harga, aksi};
     }
 
+    // ── Salin SKU induk / Product ID ─────────────────────────────────────────
+    document.addEventListener('click', function (e) {
+        const copyBtn = e.target.closest('.js-copy-value');
+        if (!copyBtn) return;
+        e.stopPropagation();
+        const val = copyBtn.dataset.copy;
+        const showCopied = () => {
+            const icon = copyBtn.querySelector('i');
+            const original = icon.className;
+            icon.className = 'bi bi-check-lg';
+            copyBtn.style.color = 'var(--md-primary)';
+            setTimeout(() => { icon.className = original; copyBtn.style.color = ''; }, 1000);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(val).then(showCopied).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = val;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); showCopied(); } catch (err) {}
+                ta.remove();
+            });
+        }
+    });
+
     document.addEventListener('click', function (e) {
         const subrow = e.target.closest('.products-subrow');
         if (!subrow) return;

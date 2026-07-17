@@ -34,11 +34,23 @@
                         <div class="d-flex align-items-center gap-3">
                             <div class="products-thumb"><i class="bi bi-box-seam"></i></div>
                             <div style="min-width:0">
-                                <p class="mb-0 fw-medium" style="font-size:14px;color:var(--md-on-surface)">
-                                    {{ $m->induk ?? '-' }}
+                                <p class="mb-0 fw-medium d-flex align-items-center gap-1" style="font-size:14px;color:var(--md-on-surface)">
+                                    <span>{{ $m->induk ?? '-' }}</span>
+                                    @if($m->induk ?? null)
+                                        <button type="button" class="js-copy-value" data-copy="{{ $m->induk }}"
+                                                title="Salin SKU induk"
+                                                style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:0;line-height:1;cursor:pointer;flex-shrink:0">
+                                            <i class="bi bi-copy" style="font-size:12px"></i>
+                                        </button>
+                                    @endif
                                 </p>
-                                <p class="mb-0" style="font-size:12px;color:var(--md-on-surface-variant);font-variant-numeric:tabular-nums">
-                                    {{ $row->product_id }}
+                                <p class="mb-0 d-flex align-items-center gap-1" style="font-size:12px;color:var(--md-on-surface-variant);font-variant-numeric:tabular-nums">
+                                    <span>{{ $row->product_id }}</span>
+                                    <button type="button" class="js-copy-value" data-copy="{{ $row->product_id }}"
+                                            title="Salin Product ID"
+                                            style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:0;line-height:1;cursor:pointer;flex-shrink:0">
+                                        <i class="bi bi-copy" style="font-size:11px"></i>
+                                    </button>
                                 </p>
                             </div>
                         </div>
