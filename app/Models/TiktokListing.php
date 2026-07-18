@@ -8,12 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TiktokListing extends Model
 {
-    protected $fillable = ['store_id', 'product_id', 'synced_at'];
+    protected $fillable = ['store_id', 'tiktok_product_id'];
 
     protected $casts = [
-        'store_id'   => 'integer',
-        'product_id' => 'integer',
-        'synced_at'  => 'datetime',
+        'store_id'          => 'integer',
+        'tiktok_product_id' => 'integer',
     ];
 
     public function store(): BelongsTo

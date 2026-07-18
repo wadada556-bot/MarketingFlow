@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\JubelioInventory;
+use App\Models\Product;
 use App\Models\User;
 use App\Notifications\HppChangedNotification;
 use App\Services\JubelioApiService;
@@ -11,10 +11,10 @@ use Illuminate\Console\Command;
 class SyncHpp extends Command
 {
     protected $signature   = 'hpp:sync';
-    protected $description = 'Sync HPP (harga pokok penjualan) dari Jubelio ke jubelio_inventory + email perubahan';
+    protected $description = 'Sync HPP (harga pokok penjualan) dari Jubelio ke products + email perubahan';
 
     /**
-     * Satu-satunya sumber HPP di DB = jubelio_inventory.hpp (tabel sku_hpp yang
+     * Satu-satunya sumber HPP di DB = products.hpp (tabel sku_hpp yang
      * dulu jadi baseline terpisah sudah di-drop — duplikat antar tabel).
      * Deteksi perubahan: bandingkan HPP segar dari Jubelio dengan nilai
      * tersimpan; command inilah SATU-SATUNYA penulis hpp dari sync (30-menitan
@@ -42,7 +42,7 @@ class SyncHpp extends Command
 
         $this->info('[HPP Sync] Diterima ' . count($fresh) . ' SKU. Cek perubahan...');
 
-        $existing = JubelioInventory::pluck('hpp', 'sku_code');
+        $existing = Product::pluck('hpp', 'sku_code');
 
         $now     = now();
         $changes = [];
@@ -52,11 +52,11 @@ class SyncHpp extends Command
             }
             $oldHpp = $existing->get($sku);
             if ($oldHpp === null) {
-                continue; // SKU belum ada di jubelio_inventory (menunggu sync inventory)
+                continue; // SKU belum ada di products (menunggu sync inventory)
             }
             if ((int) $oldHpp !== $newHpp) {
                 $changes[] = ['sku' => $sku, 'old' => (int) $oldHpp, 'new' => $newHpp];
-                JubelioInventory::where('sku_code', $sku)
+                Product::where('sku_code', $sku)
                     ->update(['hpp' => $newHpp, 'updated_at' => $now]);
             }
         }

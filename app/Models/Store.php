@@ -21,9 +21,4 @@ class Store extends Model
     {
         return $this->hasMany(TiktokListing::class);
     }
-
-    public function tiktokListingSkus(): HasMany
-    {
-        return $this->hasMany(TiktokListingSku::class);
-    }
 }

@@ -2,14 +2,14 @@
 
 namespace App\Console\Commands;
 
-use App\Models\JubelioInventory;
+use App\Models\Product;
 use App\Services\JubelioApiService;
 use Illuminate\Console\Command;
 
 class SyncJubelioInventory extends Command
 {
     protected $signature   = 'jubelio:sync-inventory';
-    protected $description = 'Sync stok, HPP, dan PO inbound dari Jubelio ke tabel lokal jubelio_inventory';
+    protected $description = 'Sync stok, HPP, dan PO inbound dari Jubelio ke tabel lokal products';
 
     public function handle(JubelioApiService $jubelio): int
     {
@@ -48,7 +48,6 @@ class SyncJubelioInventory extends Command
             $rows[] = [
                 'sku_code'        => $sku,
                 'parent_sku'      => $data['parent_sku'],
-                'item_group_id'   => $data['item_group_id'] ?: null,
                 'variation_label' => $data['variation_label'],
                 'stok'            => $data['stok'],
                 'hpp'             => $hpp,
@@ -60,10 +59,10 @@ class SyncJubelioInventory extends Command
         }
 
         foreach (array_chunk($rows, 500) as $chunk) {
-            JubelioInventory::upsert(
+            Product::upsert(
                 $chunk,
                 ['sku_code'],
-                ['parent_sku', 'item_group_id', 'variation_label', 'stok', 'po_qty', 'synced_at', 'updated_at']
+                ['parent_sku', 'variation_label', 'stok', 'po_qty', 'synced_at', 'updated_at']
             );
         }
 

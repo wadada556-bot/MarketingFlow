@@ -23,19 +23,23 @@ DB was purged down to 18 tables: all ads tables (`ads`, `ad_weekly_performances`
 on dev AND prod (user had a full backup; see migration `2026_07_18_100002_drop_unused_tables`).
 
 Data sources today:
-- **Jubelio** (ERP/warehouse) — stock, HPP (cost price), PO quantities → `jubelio_inventory`.
-  Ownership of `hpp` is split by WRITER, not by table: `jubelio:sync-inventory` (every 30 min)
-  updates stock/PO/labels but deliberately does NOT update `hpp`; `hpp:sync` (daily 08:30) is the
-  only sync that writes `hpp`, which lets it use the stored value itself as the change-detection
-  baseline for the HPP-change email (the old separate baseline table `sku_hpp` was dropped
-  2026-07-18 as a full cross-table duplicate, together with orphaned `notification_logs`).
-- **TikTok Seller Center** — product/SKU listings per store → `tiktok_listings`, `tiktok_listing_skus`
-  (imported by an external Python tool, not this app).
+- **Jubelio** (ERP/warehouse) — stock, HPP (cost price), PO quantities → **`products`** (master
+  table, 1 row per physical SKU). Ownership of `hpp` is split by WRITER, not by table:
+  `jubelio:sync-inventory` (every 30 min) updates stock/PO/labels but deliberately does NOT update
+  `hpp`; `hpp:sync` (daily 08:30) is the only sync that writes `hpp`, which lets it use the stored
+  value itself as the change-detection baseline for the HPP-change email.
+- **TikTok Seller Center** — product/SKU listings per store → `tiktok_listings`,
+  `tiktok_listing_skus`. **The external listing importer was deleted 2026-07-16** (repo
+  `C:\generate-diskon-tiktok`) — no external process writes ANY table anymore; a future importer
+  must target the current schema.
 - **Prices are manual** — the Tokopedia price scraper was retired 2026-07-17; `tiktok_listing_prices`
   is owned and written solely by this app's UI (see Domain model).
 
-For `jubelio_inventory.hpp`: HPP=0 means "not set" and manual edits are preserved; sync never
-overwrites with 0.
+For `products.hpp`: HPP=0 means "not set" and manual edits are preserved; sync never overwrites
+with 0.
+
+Full pre-restructure dumps of the 5 core tables (dev & prod) live in
+`C:\db-backup-marketing-flow\*_5core_*.sql`.
 
 ## Commands
 
@@ -83,31 +87,32 @@ No JS test runner or JS linter is configured — `package.json` only builds asse
 
 ### Domain model
 
-- **Stores** (`stores` table) — one row per TikTok shop. Almost everything else is scoped by
-  `store_id` because stock/HPP is global but *price and listing identity are per store*.
-- **Catalog identity is layered, not a single `product_id`:**
-  - `jubelio_inventory.sku_code` (PK) is the global source of truth for stock/HPP/PO — one row per
-    physical SKU, independent of any store or TikTok listing.
-  - `jubelio_inventory.parent_sku` / `match_sku` group SKU variants that share a base product
-    (`match_sku` = `sku_code` with the trailing `-<number>` variant suffix stripped, uppercased).
-  - `tiktok_listings.product_id` is TikTok's own listing id — **scoped per store**: the same
-    physical product has a *different* `product_id` on each store, so it cannot be used to group a
-    product across stores. `tiktok_listing_skus` maps a listing to its N `sku_code`s (via
-    `listing_id` + `store_id`).
-  - `tiktok_listing_prices` (`store_id`, `product_id`, `sku_id`, `sku_code`, `retail_price`,
-    `promotion_price`; unique `(store_id, product_id, sku_code)`) holds the promo/retail price **per
-    listing** — one `sku_code` can be listed under >1 TikTok `product_id` in the same store (real,
-    ~95 cases in one store), and editing a price from the UI must affect only the specific listing
-    the user is looking at. This table replaced both `store_sku_prices` (per store+SKU only, could
-    not distinguish listings) and the short-lived `tiktok_listing_price_overrides` in the 2026-07-18
-    restructure. It is owned entirely by this app: all manual price-edit endpoints
-    (`updatePrice`/`bulkUpdatePrice`/`bulkPriceApply` in `ProductController`) upsert here, and no
-    external process writes it. Price semantics follow the old table: 0 = no price/discount set.
-  - Price changes are logged automatically by DB trigger `trg_tiktok_listing_prices_history` into
-    `tiktok_listing_price_histories` (fires on UPDATE only, and only when the value actually
-    changed; includes `product_id`+`sku_id` so history is per listing) — the app never writes
-    history rows itself, just reads them back for the "Histori" UI action (filtered by
-    store+product_id+sku_code).
+- **Stores** (`stores` table) — one row per TikTok shop. Listing identity and prices are scoped
+  per store; stock/HPP is global (master `products`).
+- **Core schema (redesigned 2026-07-18, full FK chain — naming rule: `product_id` columns are
+  ALWAYS FK→`products.id`; TikTok's own ids are `tiktok_product_id`/`tiktok_sku_id`):**
+  - `products` — MASTER, 1 row per physical SKU: `id`, `sku_code` (unique), `parent_sku` (variant
+    grouping derived from Jubelio's item_group_id at sync time — the column itself was dropped),
+    `variation_label`, `stok`, `hpp`, `po_qty`, `synced_at`.
+  - `tiktok_listings` — `id`, `store_id` FK, `tiktok_product_id` (TikTok's listing id, unique per
+    store; the same physical product has a different one on each store, so it can NOT group a
+    product across stores).
+  - `tiktok_listing_skus` — bridge listing↔product: `listing_id` FK→tiktok_listings (cascade),
+    `product_id` FK→products (cascade), `tiktok_sku_id`; unique `(listing_id, tiktok_sku_id)`.
+  - `tiktok_listing_prices` — owned entirely by this app (all manual price-edit endpoints in
+    `ProductController` upsert here; no external writer): `listing_id` FK, `product_id` FK,
+    `retail_price`, `promotion_price`; unique `(listing_id, product_id)`. Per-listing prices exist
+    because one SKU can be listed under >1 TikTok listing in the same store (~95 real cases) and
+    editing must affect only the listing being viewed. 0 = no price/discount set.
+  - `tiktok_listing_price_histories` — audit snapshot, DELIBERATELY denormalized
+    (`store_id`, `tiktok_product_id`, `tiktok_sku_id`, `sku_code`, price_type, old/new, changed_at)
+    so history stays readable even if the listing/product is deleted. Filled ONLY by DB trigger
+    `trg_tiktok_listing_prices_history` (BEFORE UPDATE, only when a value actually changed; it
+    SELECTs the identity from listings/products since price rows only carry FKs). The app just
+    reads it back for the "Histori" modal (filtered by store+tiktok_product_id+sku_code).
+  - **JSON/HTTP contract note:** endpoint payloads and JSON fields still use the names
+    `product_id`/`sku_id` for TikTok ids (aliased in SELECTs) — the Blade/JS layer predates the
+    rename and was intentionally left unchanged.
 
 ### Controllers bypass Eloquent for reporting/listing queries
 

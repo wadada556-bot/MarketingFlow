@@ -36,17 +36,14 @@ class PriceComparisonService
         // antar listing SKU itu; indikator `diverges` = listing-listing SKU itu
         // di toko itu punya harga tidak seragam.
         $raw = DB::table('tiktok_listing_skus as ts')
-            ->join('tiktok_listings as tl', function ($q) {
-                $q->on('tl.id', '=', 'ts.listing_id')->on('tl.store_id', '=', 'ts.store_id');
-            })
-            ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
+            ->join('tiktok_listings as tl', 'tl.id', '=', 'ts.listing_id')
+            ->join('products as pr', 'pr.id', '=', 'ts.product_id')
             ->leftJoin('tiktok_listing_prices as p', function ($q) {
-                $q->on('p.store_id', '=', 'ts.store_id')
-                    ->on('p.product_id', '=', 'tl.product_id')
-                    ->on('p.sku_code', '=', 'ts.sku_code');
+                $q->on('p.listing_id', '=', 'tl.id')
+                    ->on('p.product_id', '=', 'ts.product_id');
             })
-            ->select('ts.store_id', 'ts.sku_code', 'j.variation_label', 'j.hpp', 'p.promotion_price')
-            ->when($search !== '', fn ($q) => $q->where('ts.sku_code', 'like', "%{$search}%"))
+            ->select('tl.store_id', 'pr.sku_code', 'pr.variation_label', 'pr.hpp', 'p.promotion_price')
+            ->when($search !== '', fn ($q) => $q->where('pr.sku_code', 'like', "%{$search}%"))
             ->get();
 
         $rows = $raw->groupBy('sku_code')->map(function (Collection $group) {
@@ -107,13 +104,12 @@ class PriceComparisonService
         return Store::select('id', 'name')->orderBy('name')->get();
     }
 
-    /** Total SKU seller yang punya listing TikTok + data Jubelio, tanpa filter search/diffOnly. */
+    /** Total SKU seller yang punya listing TikTok, tanpa filter search/diffOnly. */
     public function totalSkuCount(): int
     {
-        return DB::table('tiktok_listing_skus as ts')
-            ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
+        return DB::table('tiktok_listing_skus')
             ->distinct()
-            ->count('ts.sku_code');
+            ->count('product_id');
     }
 
     private function sortValue(array $row, string $sortKey): string|int

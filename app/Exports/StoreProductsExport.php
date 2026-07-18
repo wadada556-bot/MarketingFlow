@@ -50,21 +50,19 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
     public function collection()
     {
         $rows = DB::table('tiktok_listings as tl')
-            ->join('tiktok_listing_skus as ts', function ($x) {
-                $x->on('ts.listing_id', '=', 'tl.id')->where('ts.store_id', $this->storeId);
-            })
-            ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
+            ->join('tiktok_listing_skus as ts', 'ts.listing_id', '=', 'tl.id')
+            ->join('products as pr', 'pr.id', '=', 'ts.product_id')
             ->leftJoin('tiktok_listing_prices as p', function ($x) {
-                $x->on('p.product_id', '=', 'tl.product_id')
-                    ->on('p.sku_code', '=', 'j.sku_code')
-                    ->where('p.store_id', $this->storeId);
+                $x->on('p.listing_id', '=', 'tl.id')
+                    ->on('p.product_id', '=', 'ts.product_id');
             })
             ->where('tl.store_id', $this->storeId)
-            ->orderBy('tl.product_id')
-            ->orderBy('ts.sku_id')
+            ->orderBy('tl.tiktok_product_id')
+            ->orderBy('ts.tiktok_sku_id')
             ->get([
-                'tl.product_id', 'ts.sku_id', 'ts.sku_code', 'j.variation_label',
-                'j.stok', 'j.po_qty', 'j.hpp', 'p.retail_price', 'p.promotion_price',
+                'tl.tiktok_product_id as product_id', 'ts.tiktok_sku_id as sku_id',
+                'pr.sku_code', 'pr.variation_label',
+                'pr.stok', 'pr.po_qty', 'pr.hpp', 'p.retail_price', 'p.promotion_price',
             ]);
 
         // Label induk per listing (product_id) → diulang di tiap baris varian.

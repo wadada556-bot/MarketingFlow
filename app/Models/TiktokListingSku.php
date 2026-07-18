@@ -7,29 +7,21 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TiktokListingSku extends Model
 {
-    protected $fillable = [
-        'store_id', 'listing_id', 'sku_id', 'sku_code', 'match_sku', 'variation_value', 'synced_at',
-    ];
+    protected $fillable = ['listing_id', 'product_id', 'tiktok_sku_id'];
 
     protected $casts = [
-        'store_id'   => 'integer',
-        'listing_id' => 'integer',
-        'sku_id'     => 'integer',
-        'synced_at'  => 'datetime',
+        'listing_id'    => 'integer',
+        'product_id'    => 'integer',
+        'tiktok_sku_id' => 'integer',
     ];
-
-    public function store(): BelongsTo
-    {
-        return $this->belongsTo(Store::class);
-    }
 
     public function listing(): BelongsTo
     {
         return $this->belongsTo(TiktokListing::class, 'listing_id');
     }
 
-    public function jubelioInventory(): BelongsTo
+    public function product(): BelongsTo
     {
-        return $this->belongsTo(JubelioInventory::class, 'sku_code', 'sku_code');
+        return $this->belongsTo(Product::class, 'product_id');
     }
 }
