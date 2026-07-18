@@ -14,10 +14,12 @@ class PriceComparisonController extends Controller
     {
         $search   = trim((string) $request->input('search'));
         $diffOnly = $request->boolean('diff_only');
+        $sortKey  = (string) $request->input('sort', 'selisih');
+        $sortDir  = $request->input('dir') === 'asc' ? 'asc' : 'desc';
         $perPage  = 50;
         $page     = (int) $request->input('page', 1);
 
-        $rows   = $service->buildRows($search, $diffOnly);
+        $rows   = $service->buildRows($search, $diffOnly, $sortKey, $sortDir);
         $stores = $service->stores();
 
         $paginated = new LengthAwarePaginator(
@@ -33,6 +35,9 @@ class PriceComparisonController extends Controller
             'stores' => $stores,
             'search' => $search,
             'diffOnly' => $diffOnly,
+            'sortKey' => $sortKey,
+            'sortDir' => $sortDir,
+            'totalAll' => $service->totalSkuCount(),
         ]);
     }
 

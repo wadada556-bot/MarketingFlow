@@ -24,7 +24,7 @@ class PriceComparisonService
      *   'has_diff' => bool,
      * ]
      */
-    public function buildRows(?string $search = null, bool $diffOnly = false): Collection
+    public function buildRows(?string $search = null, bool $diffOnly = false, string $sortKey = 'selisih', string $sortDir = 'desc'): Collection
     {
         $search = trim((string) $search);
 
@@ -78,14 +78,50 @@ class PriceComparisonService
             $rows = $rows->filter(fn ($row) => $row['has_diff'])->values();
         }
 
-        return $rows->sortBy([
-            ['selisih', 'desc'],
-            ['sku_code', 'asc'],
-        ])->values();
+        return $rows->sort(function (array $a, array $b) use ($sortKey, $sortDir) {
+            $cmp = $this->sortValue($a, $sortKey) <=> $this->sortValue($b, $sortKey);
+
+            return $sortDir === 'asc' ? $cmp : -$cmp;
+        })->values();
     }
 
     public function stores(): Collection
     {
         return Store::select('id', 'name')->orderBy('name')->get();
+    }
+
+    /** Total SKU seller yang punya listing TikTok + data Jubelio, tanpa filter search/diffOnly. */
+    public function totalSkuCount(): int
+    {
+        return DB::table('tiktok_listing_skus as ts')
+            ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
+            ->distinct()
+            ->count('ts.sku_code');
+    }
+
+    private function sortValue(array $row, string $sortKey): string|int
+    {
+        if ($sortKey === 'sku') {
+            return $row['sku_code'];
+        }
+        if ($sortKey === 'variasi') {
+            return $row['variasi'] ?? '';
+        }
+        if ($sortKey === 'hpp') {
+            return $row['hpp'];
+        }
+        if ($sortKey === 'min') {
+            return $row['min'] ?? -PHP_INT_MAX;
+        }
+        if ($sortKey === 'max') {
+            return $row['max'] ?? -PHP_INT_MAX;
+        }
+        if (str_starts_with($sortKey, 'store:')) {
+            $storeId = (int) substr($sortKey, 6);
+
+            return $row['prices'][$storeId] ?? -PHP_INT_MAX;
+        }
+
+        return $row['selisih'];
     }
 }

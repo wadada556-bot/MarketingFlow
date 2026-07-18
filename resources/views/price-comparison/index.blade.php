@@ -2,6 +2,11 @@
 
 @section('title', 'Perbandingan Harga Promo')
 
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('css/products.css') }}?v={{ filemtime(public_path('css/products.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/price-comparison.css') }}?v={{ filemtime(public_path('css/price-comparison.css')) }}">
+@endpush
+
 @section('content')
 
     <div class="products-sticky-header">
@@ -66,6 +71,10 @@
                     @if($diffOnly)<i class="bi bi-check-lg" style="font-size:14px"></i>@endif
                 </label>
             </div>
+
+            <span class="price-comparison-result-count">
+                {{ number_format($rows->total(), 0, ',', '.') }} dari {{ number_format($totalAll, 0, ',', '.') }} SKU
+            </span>
         </form>
     </div>
 
@@ -80,26 +89,42 @@
             : '<span style="color:var(--md-on-surface-variant)">-</span>';
     @endphp
 
-    <div class="md-table-wrap">
+    @php
+        $buildSortUrl = function (string $key) use ($search, $diffOnly, $sortKey, $sortDir) {
+            $nextDir = ($sortKey === $key && $sortDir === 'asc') ? 'desc' : 'asc';
+
+            return route('price-comparison.index', array_filter([
+                'search' => $search ?: null,
+                'diff_only' => $diffOnly ? 1 : null,
+                'sort' => $key,
+                'dir' => $nextDir,
+            ]));
+        };
+        $sortArrow = fn (string $key) => $sortKey === $key ? ($sortDir === 'asc' ? '&#9650;' : '&#9660;') : '';
+    @endphp
+
+    <div class="md-table-wrap price-comparison-scroll">
         <table class="md-table table-hover align-middle">
             <thead>
                 <tr>
-                    <th>Seller SKU</th>
-                    <th>Variasi</th>
-                    <th class="text-end" style="width:100px">HPP</th>
-                    <th class="text-end" style="width:130px">Harga Terendah</th>
-                    <th class="text-end" style="width:130px">Harga Tertinggi</th>
-                    <th class="text-end" style="width:120px">Selisih (Rp)</th>
+                    <th class="col-sku"><a href="{{ $buildSortUrl('sku') }}">Seller SKU <span class="sort-arrow">{!! $sortArrow('sku') !!}</span></a></th>
+                    <th class="col-variasi"><a href="{{ $buildSortUrl('variasi') }}">Variasi <span class="sort-arrow">{!! $sortArrow('variasi') !!}</span></a></th>
+                    <th class="text-end" style="width:100px"><a href="{{ $buildSortUrl('hpp') }}">HPP <span class="sort-arrow">{!! $sortArrow('hpp') !!}</span></a></th>
+                    <th class="text-end" style="width:130px"><a href="{{ $buildSortUrl('min') }}">Harga Terendah <span class="sort-arrow">{!! $sortArrow('min') !!}</span></a></th>
+                    <th class="text-end" style="width:130px"><a href="{{ $buildSortUrl('max') }}">Harga Tertinggi <span class="sort-arrow">{!! $sortArrow('max') !!}</span></a></th>
+                    <th class="text-end" style="width:120px"><a href="{{ $buildSortUrl('selisih') }}">Selisih (Rp) <span class="sort-arrow">{!! $sortArrow('selisih') !!}</span></a></th>
                     @foreach($stores as $store)
-                        <th class="text-end" style="width:130px">{{ ucwords($store->name) }}</th>
+                        <th class="text-end" style="width:130px">
+                            <a href="{{ $buildSortUrl('store:' . $store->id) }}">{{ ucwords($store->name) }} <span class="sort-arrow">{!! $sortArrow('store:' . $store->id) !!}</span></a>
+                        </th>
                     @endforeach
                 </tr>
             </thead>
             <tbody>
                 @forelse($rows as $row)
                     <tr>
-                        <td style="font-size:13.5px;color:var(--md-on-surface)">{{ $row['sku_code'] }}</td>
-                        <td style="font-size:13.5px;color:var(--md-on-surface)">{{ $row['variasi'] ?? '-' }}</td>
+                        <td class="col-sku" style="font-size:13.5px;color:var(--md-on-surface)">{{ $row['sku_code'] }}</td>
+                        <td class="col-variasi" style="font-size:13.5px;color:var(--md-on-surface)">{{ $row['variasi'] ?? '-' }}</td>
                         <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">{!! $hppDisplay($row['hpp']) !!}</td>
                         <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">{!! $rupiah($row['min']) !!}</td>
                         <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">{!! $rupiah($row['max']) !!}</td>
