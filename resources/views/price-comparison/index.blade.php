@@ -103,13 +103,12 @@
             <thead>
                 <tr>
                     <th class="col-sku"><a href="{{ $buildSortUrl('sku') }}">Seller SKU <span class="sort-arrow">{!! $sortArrow('sku') !!}</span></a></th>
-                    <th class="col-variasi"><a href="{{ $buildSortUrl('variasi') }}">Variasi <span class="sort-arrow">{!! $sortArrow('variasi') !!}</span></a></th>
-                    <th class="text-end" style="width:100px"><a href="{{ $buildSortUrl('hpp') }}">HPP <span class="sort-arrow">{!! $sortArrow('hpp') !!}</span></a></th>
-                    <th class="text-end" style="width:130px"><a href="{{ $buildSortUrl('min') }}">Harga Terendah <span class="sort-arrow">{!! $sortArrow('min') !!}</span></a></th>
-                    <th class="text-end" style="width:130px"><a href="{{ $buildSortUrl('max') }}">Harga Tertinggi <span class="sort-arrow">{!! $sortArrow('max') !!}</span></a></th>
-                    <th class="text-end" style="width:120px"><a href="{{ $buildSortUrl('selisih') }}">Selisih (Rp) <span class="sort-arrow">{!! $sortArrow('selisih') !!}</span></a></th>
+                    <th class="text-end"><a href="{{ $buildSortUrl('hpp') }}">HPP <span class="sort-arrow">{!! $sortArrow('hpp') !!}</span></a></th>
+                    <th class="text-end"><a href="{{ $buildSortUrl('min') }}">Harga Terendah <span class="sort-arrow">{!! $sortArrow('min') !!}</span></a></th>
+                    <th class="text-end"><a href="{{ $buildSortUrl('max') }}">Harga Tertinggi <span class="sort-arrow">{!! $sortArrow('max') !!}</span></a></th>
+                    <th class="text-end"><a href="{{ $buildSortUrl('selisih') }}">Selisih (Rp) <span class="sort-arrow">{!! $sortArrow('selisih') !!}</span></a></th>
                     @foreach($stores as $store)
-                        <th class="text-end" style="width:130px">
+                        <th class="text-end">
                             <a href="{{ $buildSortUrl('store:' . $store->id) }}">{{ ucwords($store->name) }} <span class="sort-arrow">{!! $sortArrow('store:' . $store->id) !!}</span></a>
                         </th>
                     @endforeach
@@ -119,7 +118,6 @@
                 @forelse($rows as $row)
                     <tr>
                         <td class="col-sku" style="font-size:13.5px;color:var(--md-on-surface)">{{ $row['sku_code'] }}</td>
-                        <td class="col-variasi" style="font-size:13.5px;color:var(--md-on-surface)">{{ $row['variasi'] ?? '-' }}</td>
                         <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">{!! $hppDisplay($row['hpp']) !!}</td>
                         <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">{!! $rupiah($row['min']) !!}</td>
                         <td class="text-end" style="font-size:13.5px;color:var(--md-on-surface)">{!! $rupiah($row['max']) !!}</td>
@@ -140,7 +138,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ 6 + $stores->count() }}" class="text-center" style="padding:32px;color:var(--md-on-surface-variant)">
+                        <td colspan="{{ 5 + $stores->count() }}" class="text-center" style="padding:32px;color:var(--md-on-surface-variant)">
                             Tidak ada data.
                         </td>
                     </tr>

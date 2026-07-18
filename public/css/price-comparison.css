@@ -3,20 +3,21 @@
     padding: 0 20px 20px;
 }
 
-/* Area tabel bergulir dgn header & 2 kolom pertama (Seller SKU, Variasi) yg
-   tetap terlihat — dataset lintas toko lebar, jadi perlu dibedakan mana
-   kolom identitas SKU vs kolom harga per toko saat digulir horizontal. */
+/* Area tabel dgn header sticky saat digulir vertikal. Tabel diatur
+   table-layout:fixed + width:100% supaya semua kolom pas dalam lebar
+   kontainer tanpa perlu scroll ke samping. */
 .price-comparison-scroll {
     border: 1px solid var(--md-outline-variant);
     border-radius: var(--md-shape-md);
     max-height: 640px;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: auto;
 }
 .price-comparison-scroll table {
     border-collapse: separate;
     border-spacing: 0;
-    width: max-content;
-    min-width: 100%;
+    width: 100%;
+    table-layout: fixed;
 }
 .price-comparison-scroll thead th {
     position: sticky;
@@ -24,7 +25,17 @@
     z-index: 3;
     border-bottom: 1px solid var(--md-outline-variant);
     border-right: 1px solid var(--md-outline-variant);
+    white-space: normal;
+    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 10px 10px;
+}
+.price-comparison-scroll tbody td {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+    padding: 10px 10px;
 }
 .price-comparison-scroll thead th a {
     display: block;
@@ -48,30 +59,20 @@
 }
 
 /* Kolom identitas SKU tetap terlihat saat digulir ke kanan */
-.price-comparison-scroll .col-sku,
-.price-comparison-scroll .col-variasi {
+.price-comparison-scroll .col-sku {
     position: sticky;
     background: var(--md-surface-container-lowest);
+    left: 0;
+    width: 12%;
+    z-index: 2;
+    border-right: 2px solid var(--md-outline-variant);
 }
-.price-comparison-scroll thead .col-sku,
-.price-comparison-scroll thead .col-variasi {
+.price-comparison-scroll thead .col-sku {
     z-index: 4;
     background: var(--md-surface-container);
 }
-.price-comparison-scroll tbody tr:hover .col-sku,
-.price-comparison-scroll tbody tr:hover .col-variasi {
+.price-comparison-scroll tbody tr:hover .col-sku {
     background: var(--md-surface-container-low);
-}
-.price-comparison-scroll .col-sku {
-    left: 0;
-    min-width: 140px;
-    z-index: 2;
-}
-.price-comparison-scroll .col-variasi {
-    left: 140px;
-    min-width: 110px;
-    z-index: 2;
-    border-right: 2px solid var(--md-outline-variant);
 }
 
 .price-comparison-result-count {
