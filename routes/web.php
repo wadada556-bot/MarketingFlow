@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PriceComparisonController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StoreController;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,11 @@ Route::get('/products/price/bulk-excel-template', [ProductController::class, 'bu
     ->name('products.bulk-price-excel-template');
 Route::resource('products', ProductController::class)->only(['index']);
 Route::resource('stores', StoreController::class);
+
+Route::get('/price-comparison', [PriceComparisonController::class, 'index'])
+    ->name('price-comparison.index');
+Route::get('/price-comparison/export', [PriceComparisonController::class, 'export'])
+    ->name('price-comparison.export');
 
 Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
 Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');

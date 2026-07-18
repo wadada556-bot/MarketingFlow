@@ -59,6 +59,13 @@
                     'href'   => route('notifications.index'),
                     'badge'  => $unreadNotifCount,
                 ],
+                [
+                    'label'  => 'Perbandingan Harga Promo',
+                    'icon'   => 'bi-bar-chart-line',
+                    'active' => request()->is('price-comparison*'),
+                    'href'   => route('price-comparison.index'),
+                    'badge'  => 0,
+                ],
             ];
         @endphp
 
