@@ -60,7 +60,7 @@
                     'badge'  => $unreadNotifCount,
                 ],
                 [
-                    'label'  => 'Perbandingan Harga Promo',
+                    'label'  => 'Selisih Harga',
                     'icon'   => 'bi-bar-chart-line',
                     'active' => request()->is('price-comparison*'),
                     'href'   => route('price-comparison.index'),

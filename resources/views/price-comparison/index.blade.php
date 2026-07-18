@@ -1,6 +1,6 @@
 @extends('components.layouts.app')
 
-@section('title', 'Perbandingan Harga Promo')
+@section('title', 'Selisih Harga')
 
 @push('styles')
     <link rel="stylesheet" href="{{ asset('css/products.css') }}?v={{ filemtime(public_path('css/products.css')) }}">
@@ -12,7 +12,7 @@
     <div class="products-sticky-header">
         <div class="products-title-block">
             <div style="min-width:0">
-                <h1>Perbandingan Harga Promo</h1>
+                <h1>Selisih Harga</h1>
                 <div class="products-freshness-row d-flex align-items-center gap-2">
                     <span class="d-inline-flex align-items-center gap-1">
                         <i class="bi bi-info-circle"></i> Harga terendah/tertinggi/selisih dihitung hanya dari toko yang sedang promo
