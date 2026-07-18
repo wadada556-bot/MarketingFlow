@@ -21,15 +21,10 @@
             </div>
 
             <div class="d-flex align-items-center gap-2" style="flex-shrink:0">
-                <a href="{{ route('price-comparison.export', array_filter(['search' => $search ?: null])) }}"
+                <a href="{{ route('price-comparison.export', array_filter(['search' => $search ?: null, 'diff_only' => $diffOnly ? 1 : null])) }}"
                    class="products-export-btn"
-                   title="Export semua data ke Excel">
-                    <i class="bi bi-download"></i> Semua
-                </a>
-                <a href="{{ route('price-comparison.export', array_filter(['search' => $search ?: null, 'diff_only' => 1])) }}"
-                   class="products-export-btn"
-                   title="Export hanya SKU yang ada selisih harga ke Excel">
-                    <i class="bi bi-download"></i> Selisih Saja
+                   title="{{ $diffOnly ? 'Export SKU yang ada selisih harga ke Excel' : 'Export semua data ke Excel' }}">
+                    <i class="bi bi-download"></i>
                 </a>
             </div>
         </div>
