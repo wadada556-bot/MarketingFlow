@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\SkuHpp;
+use App\Models\JubelioInventory;
 use App\Models\User;
 use App\Notifications\HppChangedNotification;
 use App\Services\JubelioApiService;
@@ -11,8 +11,19 @@ use Illuminate\Console\Command;
 class SyncHpp extends Command
 {
     protected $signature   = 'hpp:sync';
-    protected $description = 'Sync HPP (harga pokok penjualan) dari Jubelio ke database lokal';
+    protected $description = 'Sync HPP (harga pokok penjualan) dari Jubelio ke jubelio_inventory + email perubahan';
 
+    /**
+     * Satu-satunya sumber HPP di DB = jubelio_inventory.hpp (tabel sku_hpp yang
+     * dulu jadi baseline terpisah sudah di-drop — duplikat antar tabel).
+     * Deteksi perubahan: bandingkan HPP segar dari Jubelio dengan nilai
+     * tersimpan; command inilah SATU-SATUNYA penulis hpp dari sync (30-menitan
+     * jubelio:sync-inventory sengaja tidak meng-update hpp lagi), jadi nilai
+     * tersimpan = baseline sejak run kemarin.
+     *
+     * HPP kiriman 0 = "tidak ada HPP di Jubelio" → di-skip, supaya isian manual
+     * (produk bundling, via menu Products) tidak pernah tertimpa.
+     */
     public function handle(JubelioApiService $jubelio): int
     {
         $this->info('[HPP Sync] Mengambil data HPP dari Jubelio...');
@@ -31,36 +42,26 @@ class SyncHpp extends Command
 
         $this->info('[HPP Sync] Diterima ' . count($fresh) . ' SKU. Cek perubahan...');
 
-        // Ambil nilai lama untuk deteksi perubahan signifikan
-        $existing = SkuHpp::whereIn('sku_code', array_keys($fresh))
-            ->pluck('hpp', 'sku_code');
+        $existing = JubelioInventory::pluck('hpp', 'sku_code');
 
+        $now     = now();
         $changes = [];
         foreach ($fresh as $sku => $newHpp) {
+            if ($newHpp <= 0) {
+                continue; // 0 = tidak ada HPP; jangan timpa nilai manual
+            }
             $oldHpp = $existing->get($sku);
-            if ($oldHpp !== null && $newHpp !== (int) $oldHpp) {
+            if ($oldHpp === null) {
+                continue; // SKU belum ada di jubelio_inventory (menunggu sync inventory)
+            }
+            if ((int) $oldHpp !== $newHpp) {
                 $changes[] = ['sku' => $sku, 'old' => (int) $oldHpp, 'new' => $newHpp];
+                JubelioInventory::where('sku_code', $sku)
+                    ->update(['hpp' => $newHpp, 'updated_at' => $now]);
             }
         }
 
-        // Upsert ke DB dalam batch 500 agar tidak overload query
-        $now  = now();
-        $rows = [];
-        foreach ($fresh as $sku => $hpp) {
-            $rows[] = [
-                'sku_code'   => $sku,
-                'hpp'        => $hpp,
-                'synced_at'  => $now->toDateTimeString(),
-                'created_at' => $now->toDateTimeString(),
-                'updated_at' => $now->toDateTimeString(),
-            ];
-        }
-
-        foreach (array_chunk($rows, 500) as $chunk) {
-            SkuHpp::upsert($chunk, ['sku_code'], ['hpp', 'synced_at', 'updated_at']);
-        }
-
-        $this->info('[HPP Sync] Selesai: ' . count($fresh) . ' SKU di-sync, ' . count($changes) . ' berubah.');
+        $this->info('[HPP Sync] Selesai: ' . count($fresh) . ' SKU dicek, ' . count($changes) . ' berubah.');
 
         User::first()->notify(new HppChangedNotification($changes, count($fresh)));
         $this->info('[HPP Sync] Notifikasi email terkirim.');

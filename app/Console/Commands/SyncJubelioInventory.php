@@ -36,17 +36,14 @@ class SyncJubelioInventory extends Command
             $po = [];
         }
 
-        // HPP yang sudah tersimpan (mis. diisi manual untuk produk bundling yang
-        // HPP-nya tidak tersedia di Jubelio). Aturan: HPP tidak boleh ditimpa
-        // dengan nilai kosong. Bila Jubelio kirim 0 (tak ada HPP), pertahankan
-        // nilai lama; hanya timpa bila Jubelio kirim angka > 0.
-        $existingHpp = JubelioInventory::pluck('hpp', 'sku_code');
-
+        // Kolom hpp TIDAK di-update oleh sync 30-menitan ini — hpp dikelola oleh
+        // hpp:sync (harian 08:30, sekaligus deteksi perubahan utk email) dan
+        // edit manual di menu Products. Nilai hpp di sini hanya dipakai saat
+        // INSERT SKU baru (belum pernah ada barisnya).
         $now  = now();
         $rows = [];
         foreach ($inventory as $sku => $data) {
-            $incomingHpp = (int) $data['hpp'];
-            $hpp = $incomingHpp > 0 ? $incomingHpp : (int) ($existingHpp[$sku] ?? 0);
+            $hpp = (int) $data['hpp'];
 
             $rows[] = [
                 'sku_code'        => $sku,
@@ -66,7 +63,7 @@ class SyncJubelioInventory extends Command
             JubelioInventory::upsert(
                 $chunk,
                 ['sku_code'],
-                ['parent_sku', 'item_group_id', 'variation_label', 'stok', 'hpp', 'po_qty', 'synced_at', 'updated_at']
+                ['parent_sku', 'item_group_id', 'variation_label', 'stok', 'po_qty', 'synced_at', 'updated_at']
             );
         }
 

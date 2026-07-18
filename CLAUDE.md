@@ -23,10 +23,12 @@ DB was purged down to 18 tables: all ads tables (`ads`, `ad_weekly_performances`
 on dev AND prod (user had a full backup; see migration `2026_07_18_100002_drop_unused_tables`).
 
 Data sources today:
-- **Jubelio** (ERP/warehouse) — stock, HPP (cost price), PO quantities → `jubelio_inventory`
-  (`jubelio:sync-inventory` every 30 min; `hpp:sync` daily 08:30 also emails HPP changes using
-  `sku_hpp` as its change-detection baseline — keep `sku_hpp`, it is NOT redundant with
-  `jubelio_inventory.hpp` which the 30-min sync overwrites).
+- **Jubelio** (ERP/warehouse) — stock, HPP (cost price), PO quantities → `jubelio_inventory`.
+  Ownership of `hpp` is split by WRITER, not by table: `jubelio:sync-inventory` (every 30 min)
+  updates stock/PO/labels but deliberately does NOT update `hpp`; `hpp:sync` (daily 08:30) is the
+  only sync that writes `hpp`, which lets it use the stored value itself as the change-detection
+  baseline for the HPP-change email (the old separate baseline table `sku_hpp` was dropped
+  2026-07-18 as a full cross-table duplicate, together with orphaned `notification_logs`).
 - **TikTok Seller Center** — product/SKU listings per store → `tiktok_listings`, `tiktok_listing_skus`
   (imported by an external Python tool, not this app).
 - **Prices are manual** — the Tokopedia price scraper was retired 2026-07-17; `tiktok_listing_prices`
