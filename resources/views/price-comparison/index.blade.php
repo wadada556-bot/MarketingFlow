@@ -66,10 +66,6 @@
                     @if($diffOnly)<i class="bi bi-check-lg" style="font-size:14px"></i>@endif
                 </label>
             </div>
-
-            <span class="price-comparison-result-count">
-                {{ number_format($rows->total(), 0, ',', '.') }} dari {{ number_format($totalAll, 0, ',', '.') }} SKU
-            </span>
         </form>
     </div>
 
