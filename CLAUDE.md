@@ -10,32 +10,30 @@ framework) with vanilla JS for interactivity (fetch + custom modal overlays — 
 component, no Alpine). Bootstrap Icons (`bi bi-*`) for icons, Tailwind v4 + a custom Material Design 3
 token layer for styling.
 
-Current menu surface (2026-07-17): **Peringatan Stok** (route `/dashboard`, stock alerts only —
-GMV/ROAS/chart widgets, store ranking, and ads performance were removed from this page), **Products**,
-**Stores**, and **Perubahan HPP** (route `/notifications`, renamed from "Dashboard"/"Notifikasi" —
-labels only, routes unchanged). "Perubahan HPP" only ever contains HPP-change entries today because
-`HppChangedNotification` is the sole notification persisted to the `notifications` DB table
-(`StockAlertNotification` is mail-only, sent via `Notification::route('mail', ...)` — see
-`NotifyStockCheck`); if stock alerts are ever also persisted to that table, this menu name will need
-revisiting. The Product Ads, Product Ads New, History Penjualan, and ROAS Calculator menus/routes/
-controllers/views were deleted (see `git log` around commits `ffeb3f1`/`c58cf04`) — do not reintroduce
-routes or links to `product-ads`, `product-ads-new`, `sales-history`, or `roas-calculator` unless
-explicitly asked to bring the feature back.
+Current menu surface (2026-07-18): **Products** (`/products`, also the home page — `/` redirects
+here), **Stores**, **Selisih Harga** (`/price-comparison`), and **Perubahan HPP** (`/notifications` —
+label only; the route name is historical). Deleted features — do NOT reintroduce routes/links to them
+unless explicitly asked: Product Ads / Product Ads New / History Penjualan / ROAS Calculator (removed
+~commits `ffeb3f1`/`c58cf04`) and, in the 2026-07-18 big cleanup, **Peringatan Stok** (`/dashboard`,
+`DashboardController`, `NotifyStockCheck`, `StockAlertNotification`) and the whole **orders** feature
+(`SyncOrders`/`BackfillOrders`/`OrderSyncService`/`DailySalesQueryService`). In that same cleanup the
+DB was purged down to 18 tables: all ads tables (`ads`, `ad_weekly_performances`, `ad_logs`,
+`ads_old`, `ad_products_old`), all product-ads tables (`product_ads`, `product_ad_store`,
+`product_ad_logs`), `daily_*` stats tables, `products`, `orders`, and `sales_sync_state` were dropped
+on dev AND prod (user had a full backup; see migration `2026_07_18_100002_drop_unused_tables`).
 
-Data mostly originates from **external systems synced by scheduled jobs**, not user input:
-- **Jubelio** (ERP/warehouse) — stock, HPP (cost price), PO quantities → `jubelio_inventory`.
+Data sources today:
+- **Jubelio** (ERP/warehouse) — stock, HPP (cost price), PO quantities → `jubelio_inventory`
+  (`jubelio:sync-inventory` every 30 min; `hpp:sync` daily 08:30 also emails HPP changes using
+  `sku_hpp` as its change-detection baseline — keep `sku_hpp`, it is NOT redundant with
+  `jubelio_inventory.hpp` which the 30-min sync overwrites).
 - **TikTok Seller Center** — product/SKU listings per store → `tiktok_listings`, `tiktok_listing_skus`
   (imported by an external Python tool, not this app).
-- **Tokopedia scrape** (external Python tool) — retail/promo prices per store SKU → `store_sku_prices`.
-- **Jubelio Orders API** — incoming orders → `orders` table.
-- A separate external ads importer (Python, lives outside this repo) writes to `ads`,
-  `ad_weekly_performances`, `ad_logs` — this app only edits the status/testing/notes columns on those
-  rows, never re-derives the performance metrics itself.
+- **Prices are manual** — the Tokopedia price scraper was retired 2026-07-17; `tiktok_listing_prices`
+  is owned and written solely by this app's UI (see Domain model).
 
-Because several of these pipelines are external, always check whether a column is "owned" by an
-importer (will be silently overwritten on next sync) before writing to it from a controller. Existing
-comments in migrations/controllers usually say so explicitly (e.g. HPP=0 means "not set" and manual
-edits are preserved; sync never overwrites with 0).
+For `jubelio_inventory.hpp`: HPP=0 means "not set" and manual edits are preserved; sync never
+overwrites with 0.
 
 ## Commands
 
@@ -94,33 +92,27 @@ No JS test runner or JS linter is configured — `package.json` only builds asse
     physical product has a *different* `product_id` on each store, so it cannot be used to group a
     product across stores. `tiktok_listing_skus` maps a listing to its N `sku_code`s (via
     `listing_id` + `store_id`).
-  - `store_sku_prices` holds retail/promo price per `(store_id, sku_code)`; it is *upserted by an
-    external Python scraper*, not by this app's normal write path (manual price edits from the UI
-    are a stopgap and will be overwritten by the next scrape/sync).
-  - Price changes to `store_sku_prices` are logged automatically by a DB trigger
-    (`trg_store_sku_prices_history`) into `store_sku_price_histories` — the app never writes history
-    rows itself, just reads them back for the "Histori" UI action.
-
-- **Ads** — the external importer still writes `ads`, `ad_weekly_performances`, `ad_logs`, and the
-  legacy `product_ads`/`product_ad_store`/`product_ad_logs` tables (no schema changes were made when
-  the Product Ads / Product Ads New menus were removed). This app no longer has any controller/route
-  surface for ads management — `ProductAdController`, `ProductAdNewController`, `ProductAdLogController`,
-  and `ProductAdService` were deleted. The `ProductAd`, `ProductAdLog`, `ProductAdStore`, and
-  `DailyProductAd` **models** were kept because `DashboardController::buildStockAlerts()` and the
-  `NotifyStockCheck` command still read `product_ads`/`product_ad_store` to find which parent SKUs are
-  actively advertised (and therefore worth a stock alert) and which stores sell them.
-
-- **Orders** (`orders`) — one row per order line item, synced incrementally from Jubelio's `/orders/`
-  endpoint keyed on `last_modified` (so only changed orders are re-fetched). `orders:sync` used to run
-  daily but is currently **commented out** in `routes/console.php` (disabled intentionally — check
-  there before assuming it's live).
+  - `tiktok_listing_prices` (`store_id`, `product_id`, `sku_id`, `sku_code`, `retail_price`,
+    `promotion_price`; unique `(store_id, product_id, sku_code)`) holds the promo/retail price **per
+    listing** — one `sku_code` can be listed under >1 TikTok `product_id` in the same store (real,
+    ~95 cases in one store), and editing a price from the UI must affect only the specific listing
+    the user is looking at. This table replaced both `store_sku_prices` (per store+SKU only, could
+    not distinguish listings) and the short-lived `tiktok_listing_price_overrides` in the 2026-07-18
+    restructure. It is owned entirely by this app: all manual price-edit endpoints
+    (`updatePrice`/`bulkUpdatePrice`/`bulkPriceApply` in `ProductController`) upsert here, and no
+    external process writes it. Price semantics follow the old table: 0 = no price/discount set.
+  - Price changes are logged automatically by DB trigger `trg_tiktok_listing_prices_history` into
+    `tiktok_listing_price_histories` (fires on UPDATE only, and only when the value actually
+    changed; includes `product_id`+`sku_id` so history is per listing) — the app never writes
+    history rows itself, just reads them back for the "Histori" UI action (filtered by
+    store+product_id+sku_code).
 
 ### Controllers bypass Eloquent for reporting/listing queries
 
-Most read-heavy endpoints (`ProductController::index/variants`, dashboard stock-alert queries) use
+Most read-heavy endpoints (`ProductController::index/variants`, `PriceComparisonService`) use
 `DB::table(...)`/query builder with manual joins/aggregates rather than Eloquent relations —
 this is deliberate for query control over multi-table joins across `tiktok_listings` /
-`tiktok_listing_skus` / `jubelio_inventory` / `store_sku_prices`. Eloquent models exist for most tables
+`tiktok_listing_skus` / `jubelio_inventory` / `tiktok_listing_prices`. Eloquent models exist for most tables
 (`app/Models/*.php`) but are mainly used for simple writes/relations, not the heavy list queries. Follow
 this existing convention (raw query builder for reporting, models for simple CRUD) rather than
 introducing Eloquent-only queries into these hot paths.

@@ -54,8 +54,10 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
                 $x->on('ts.listing_id', '=', 'tl.id')->where('ts.store_id', $this->storeId);
             })
             ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
-            ->leftJoin('store_sku_prices as p', function ($x) {
-                $x->on('p.sku_code', '=', 'j.sku_code')->where('p.store_id', $this->storeId);
+            ->leftJoin('tiktok_listing_prices as p', function ($x) {
+                $x->on('p.product_id', '=', 'tl.product_id')
+                    ->on('p.sku_code', '=', 'j.sku_code')
+                    ->where('p.store_id', $this->storeId);
             })
             ->where('tl.store_id', $this->storeId)
             ->orderBy('tl.product_id')

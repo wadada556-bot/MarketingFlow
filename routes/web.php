@@ -1,16 +1,12 @@
 <?php
 
-use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PriceComparisonController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StoreController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/dashboard');
-Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-Route::get('/dashboard/stock-alerts', [DashboardController::class, 'stockAlerts'])
-    ->name('dashboard.stock-alerts');
+Route::redirect('/', '/products');
 
 Route::get('/products/variants', [ProductController::class, 'variants'])
     ->name('products.variants');

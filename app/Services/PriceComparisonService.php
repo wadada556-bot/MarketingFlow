@@ -16,7 +16,10 @@ class PriceComparisonService
      *   'sku_code' => string,
      *   'variasi' => string|null,
      *   'hpp' => int,
-     *   'prices' => [store_id => int|null],   // hanya promotion_price > 0
+     *   'prices' => [store_id => int|null],   // MIN promotion_price > 0 antar listing
+     *   'diverges' => [store_id => bool],      // true bila listing-listing
+     *                                           // (product_id) SKU itu di toko
+     *                                           // itu punya harga tak seragam
      *   'min' => int|null,
      *   'max' => int|null,
      *   'selisih' => int,
@@ -28,14 +31,21 @@ class PriceComparisonService
     {
         $search = trim((string) $search);
 
+        // Satu baris per LISTING (store, product_id, sku) + harga promo per
+        // listing dari tiktok_listing_prices. Nilai sel per toko = MIN harga>0
+        // antar listing SKU itu; indikator `diverges` = listing-listing SKU itu
+        // di toko itu punya harga tidak seragam.
         $raw = DB::table('tiktok_listing_skus as ts')
+            ->join('tiktok_listings as tl', function ($q) {
+                $q->on('tl.id', '=', 'ts.listing_id')->on('tl.store_id', '=', 'ts.store_id');
+            })
             ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
-            ->leftJoin('store_sku_prices as p', function ($q) {
-                $q->on('p.sku_code', '=', 'ts.sku_code')
-                    ->on('p.store_id', '=', 'ts.store_id');
+            ->leftJoin('tiktok_listing_prices as p', function ($q) {
+                $q->on('p.store_id', '=', 'ts.store_id')
+                    ->on('p.product_id', '=', 'tl.product_id')
+                    ->on('p.sku_code', '=', 'ts.sku_code');
             })
             ->select('ts.store_id', 'ts.sku_code', 'j.variation_label', 'j.hpp', 'p.promotion_price')
-            ->distinct()
             ->when($search !== '', fn ($q) => $q->where('ts.sku_code', 'like', "%{$search}%"))
             ->get();
 
@@ -43,9 +53,15 @@ class PriceComparisonService
             $first = $group->first();
 
             $prices = [];
-            foreach ($group as $r) {
-                $price = (int) $r->promotion_price;
-                $prices[(int) $r->store_id] = $price > 0 ? $price : null;
+            $rowDiverges = [];
+            foreach ($group->groupBy('store_id') as $sid => $listingRows) {
+                $sid = (int) $sid;
+                $values = $listingRows->pluck('promotion_price')
+                    ->map(fn ($v) => $v !== null ? (int) $v : null);
+                $positive = $values->filter(fn ($v) => $v !== null && $v > 0);
+
+                $prices[$sid] = $positive->isNotEmpty() ? $positive->min() : null;
+                $rowDiverges[$sid] = $values->unique()->count() > 1;
             }
 
             $nonNull = array_filter($prices, fn ($v) => $v !== null);
@@ -66,6 +82,7 @@ class PriceComparisonService
                 'variasi' => $first->variation_label,
                 'hpp' => (int) $first->hpp,
                 'prices' => $prices,
+                'diverges' => $rowDiverges,
                 'min' => $min,
                 'max' => $max,
                 'selisih' => $selisih,

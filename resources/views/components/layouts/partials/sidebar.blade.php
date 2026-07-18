@@ -46,13 +46,6 @@
                     'badge'  => 0,
                 ],
                 [
-                    'label'  => 'Peringatan Stok',
-                    'icon'   => 'bi-grid-1x2',
-                    'active' => request()->is('dashboard*'),
-                    'href'   => route('dashboard'),
-                    'badge'  => 0,
-                ],
-                [
                     'label'  => 'Perubahan HPP',
                     'icon'   => 'bi-bell',
                     'active' => request()->is('notifications*'),

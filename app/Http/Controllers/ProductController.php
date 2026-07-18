@@ -89,13 +89,18 @@ class ProductController extends Controller
                         $x->on('ts.listing_id', '=', 'tl.id')->where('ts.store_id', $storeId);
                     })
                     ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
-                    ->leftJoin('store_sku_prices as p', function ($x) use ($storeId) {
-                        $x->on('p.sku_code', '=', 'j.sku_code')->where('p.store_id', $storeId);
+                    ->leftJoin('tiktok_listing_prices as p', function ($x) use ($storeId) {
+                        $x->on('p.product_id', '=', 'tl.product_id')
+                            ->on('p.sku_code', '=', 'j.sku_code')
+                            ->where('p.store_id', $storeId);
                     })
                     ->where('tl.store_id', $storeId)
                     ->whereIn('tl.product_id', $pids)
                     ->orderBy('ts.sku_id')
-                    ->get(['tl.product_id', 'ts.sku_code', 'p.retail_price', 'p.promotion_price', 'j.hpp']);
+                    ->get([
+                        'tl.product_id', 'ts.sku_code', 'p.retail_price', 'j.hpp',
+                        'p.promotion_price',
+                    ]);
 
                 $meta = $vrows->groupBy('product_id')->map(function ($rows) {
                     $perBase = [];   // base => [sku_code, num] (urut kemunculan)
@@ -138,17 +143,13 @@ class ProductController extends Controller
             ['label' => 'Stok, PO & HPP', 'hint' => 'dari Jubelio'] + $freshFmt(
                 DB::table('jubelio_inventory')->max(DB::raw('COALESCE(synced_at, updated_at)'))
             ),
-            ['label' => 'Harga Promo', 'hint' => 'scrape Tokopedia'] + $freshFmt(
+            ['label' => 'Harga Promo', 'hint' => 'update manual'] + $freshFmt(
                 // Patokan "kapan diperbarui" = perubahan harga NYATA terakhir
-                // (store_sku_price_histories.changed_at, diisi trigger hanya saat
-                // nilai berubah) — bukan store_sku_prices.synced_at yang ikut
-                // ter-update tiap sync berjalan meski harga sama persis, sehingga
-                // sebelumnya label ini menyesatkan (selalu "baru saja" tiap jam
-                // sync jalan, walau harga tak berubah). Fallback ke synced_at bila
-                // toko ini belum pernah punya histori (mis. semua harga masih
-                // sama sejak insert pertama, trigger cuma jalan di UPDATE).
-                DB::table('store_sku_price_histories')->where('store_id', $storeId)->max('changed_at')
-                    ?? DB::table('store_sku_prices')->where('store_id', $storeId)->max(DB::raw('COALESCE(synced_at, updated_at)'))
+                // (histories.changed_at, diisi trigger hanya saat nilai berubah).
+                // Fallback ke synced_at/updated_at bila toko ini belum pernah
+                // punya histori (trigger cuma jalan di UPDATE).
+                DB::table('tiktok_listing_price_histories')->where('store_id', $storeId)->max('changed_at')
+                    ?? DB::table('tiktok_listing_prices')->where('store_id', $storeId)->max(DB::raw('COALESCE(synced_at, updated_at)'))
             ),
             ['label' => 'Product ID TikTok', 'hint' => 'import TikTok Seller Center'] + $freshFmt(
                 DB::table('tiktok_listings')->where('store_id', $storeId)->max('created_at')
@@ -164,7 +165,8 @@ class ProductController extends Controller
     /**
      * Detail varian satu produk induk (untuk expand baris di menu katalog),
      * di-load lazy via AJAX. Stok/PO/HPP dari jubelio_inventory + harga per
-     * varian dari store_sku_prices (toko terpilih, left join → null bila tak ada).
+     * varian dari tiktok_listing_prices (per listing pada toko terpilih,
+     * left join → null bila belum ada harga).
      */
     public function variants(Request $request)
     {
@@ -183,8 +185,10 @@ class ProductController extends Controller
                 $x->on('ts.listing_id', '=', 'tl.id')->where('ts.store_id', $storeId);
             })
             ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
-            ->leftJoin('store_sku_prices as p', function ($x) use ($storeId) {
-                $x->on('p.sku_code', '=', 'j.sku_code')->where('p.store_id', $storeId);
+            ->leftJoin('tiktok_listing_prices as p', function ($x) use ($storeId) {
+                $x->on('p.product_id', '=', 'tl.product_id')
+                    ->on('p.sku_code', '=', 'j.sku_code')
+                    ->where('p.store_id', $storeId);
             })
             ->where('tl.store_id', $storeId)
             ->where('tl.product_id', $productId)
@@ -192,44 +196,46 @@ class ProductController extends Controller
             ->orderBy('ts.sku_id')
             ->get([
                 'j.sku_code', 'j.variation_label', 'j.stok', 'j.po_qty', 'j.hpp',
-                'p.retail_price', 'p.promotion_price',
-                'tl.product_id', 'ts.sku_id',
+                'p.retail_price', 'tl.product_id', 'ts.sku_id', 'p.promotion_price',
             ]);
 
         return response()->json([
             'variants' => $rows->map(fn ($r) => [
                 // bigint TikTok (~19 digit) → kirim sbg string agar presisi tak
                 // hilang di JS (Number.MAX_SAFE_INTEGER = 2^53).
-                'product_id' => $r->product_id !== null ? (string) $r->product_id : null,
-                'sku_id'     => $r->sku_id !== null ? (string) $r->sku_id : null,
-                'sku'    => $r->sku_code,
-                'label'  => $r->variation_label,
-                'stok'   => (int) $r->stok,
-                'po'     => (int) $r->po_qty,
-                'hpp'    => (int) $r->hpp,
-                'retail' => $r->retail_price !== null ? (int) $r->retail_price : null,
-                'promo'  => $r->promotion_price !== null ? (int) $r->promotion_price : null,
+                'product_id'  => $r->product_id !== null ? (string) $r->product_id : null,
+                'sku_id'      => $r->sku_id !== null ? (string) $r->sku_id : null,
+                'sku'         => $r->sku_code,
+                'label'       => $r->variation_label,
+                'stok'        => (int) $r->stok,
+                'po'          => (int) $r->po_qty,
+                'hpp'         => (int) $r->hpp,
+                'retail'      => $r->retail_price !== null ? (int) $r->retail_price : null,
+                'promo'       => $r->promotion_price !== null ? (int) $r->promotion_price : null,
             ])->all(),
         ]);
     }
 
     /**
-     * Riwayat perubahan harga satu varian (SKU) pada toko terpilih, untuk aksi
-     * "Lihat histori harga" di detail varian. Data dari store_sku_price_histories
-     * (diisi trigger DB tiap harga berubah saat sync). Urut terbaru dulu.
+     * Riwayat perubahan harga satu varian (SKU) pada SATU LISTING (product_id)
+     * di toko terpilih, untuk aksi "Lihat histori harga" di detail varian.
+     * Data dari tiktok_listing_price_histories (diisi trigger DB tiap harga
+     * berubah). Urut terbaru dulu.
      */
     public function priceHistory(Request $request)
     {
-        $skuCode = trim((string) $request->input('sku_code', ''));
-        $storeId = $request->integer('store_id');
+        $skuCode   = trim((string) $request->input('sku_code', ''));
+        $productId = trim((string) $request->input('product_id', ''));
+        $storeId   = $request->integer('store_id');
 
         if ($skuCode === '' || ! $storeId) {
             return response()->json(['changes' => []]);
         }
 
-        $rows = DB::table('store_sku_price_histories')
+        $rows = DB::table('tiktok_listing_price_histories')
             ->where('store_id', $storeId)
             ->where('sku_code', $skuCode)
+            ->when($productId !== '', fn ($q) => $q->where('product_id', $productId))
             ->orderByDesc('changed_at')
             ->orderByDesc('id')
             ->get(['price_type', 'old_price', 'new_price', 'changed_at']);
@@ -285,19 +291,21 @@ class ProductController extends Controller
     }
 
     /**
-     * Ubah harga promo satu SKU pada satu toko. Baris store_sku_prices akan
-     * tertimpa saat sync harian berikutnya (beda dgn HPP) — ini untuk koreksi
-     * cepat di antara jadwal sync.
+     * Ubah harga promo satu SKU pada SATU LISTING (product_id) tertentu. Harga
+     * tersimpan per (store_id, product_id, sku_code) di tiktok_listing_prices,
+     * jadi listing lain yang kebetulan berbagi sku_code sama di toko yang sama
+     * tidak ikut berubah.
      */
     public function updatePrice(Request $request)
     {
         $data = $request->validate([
             'sku_code'         => ['required', 'string', 'exists:jubelio_inventory,sku_code'],
             'store_id'         => ['required', 'integer', 'exists:stores,id'],
+            'product_id'       => ['required', 'string'],
             'promotion_price'  => ['required', 'integer', 'min:0'],
         ]);
 
-        $this->upsertPrice($data['store_id'], $data['sku_code'], $data['promotion_price']);
+        $this->upsertListingPrice($data['store_id'], $data['product_id'], $data['sku_code'], $data['promotion_price']);
 
         return response()->json([
             'ok'               => true,
@@ -331,7 +339,7 @@ class ProductController extends Controller
         }
 
         foreach ($skuCodes as $skuCode) {
-            $this->upsertPrice($data['store_id'], $skuCode, $data['promotion_price']);
+            $this->upsertListingPrice($data['store_id'], $data['product_id'], $skuCode, $data['promotion_price']);
         }
 
         return response()->json([
@@ -362,8 +370,10 @@ class ProductController extends Controller
             })
             ->join('jubelio_inventory as j', 'j.sku_code', '=', 'ts.sku_code')
             ->join('stores as s', 's.id', '=', 'ts.store_id')
-            ->leftJoin('store_sku_prices as p', function ($x) {
-                $x->on('p.store_id', '=', 'ts.store_id')->on('p.sku_code', '=', 'ts.sku_code');
+            ->leftJoin('tiktok_listing_prices as p', function ($x) {
+                $x->on('p.store_id', '=', 'ts.store_id')
+                    ->on('p.product_id', '=', 'tl.product_id')
+                    ->on('p.sku_code', '=', 'ts.sku_code');
             })
             ->where(function ($w) use ($keyword) {
                 $w->where('ts.sku_code', 'like', "%{$keyword}%")
@@ -391,9 +401,10 @@ class ProductController extends Controller
     }
 
     /**
-     * Terapkan harga promo ke sekumpulan (store_id, sku_code) yang dipilih user
-     * di popup "Update Harga Massal" (bisa lintas toko/produk). Reuse upsertPrice()
-     * yang sama dgn updatePrice()/bulkUpdatePrice(). Mendukung 2 mode harga:
+     * Terapkan harga promo ke sekumpulan listing (store_id, product_id, sku_code)
+     * yang dipilih user di popup "Update Harga Massal" (bisa lintas toko/produk).
+     * Ditulis ke tiktok_listing_prices — lihat upsertListingPrice().
+     * Mendukung 2 mode harga:
      * - satu harga global (`promotion_price` di root) untuk mode "Tempel SKU",
      * - harga per-item (`items.*.promotion_price`) untuk mode "Upload Excel"
      *   yang tiap SKU-nya bisa punya harga baru berbeda.
@@ -403,6 +414,7 @@ class ProductController extends Controller
         $data = $request->validate([
             'items'                        => ['required', 'array', 'min:1'],
             'items.*.store_id'             => ['required', 'integer', 'exists:stores,id'],
+            'items.*.product_id'           => ['required', 'string'],
             'items.*.sku_code'             => ['required', 'string', 'exists:jubelio_inventory,sku_code'],
             'items.*.promotion_price'      => ['nullable', 'integer', 'min:0'],
             'promotion_price'              => ['nullable', 'integer', 'min:0'],
@@ -411,7 +423,7 @@ class ProductController extends Controller
         foreach ($data['items'] as $item) {
             $price = $item['promotion_price'] ?? $data['promotion_price'] ?? null;
             abort_if($price === null, 422, 'Setiap item harus punya harga promo (baik per-item maupun global).');
-            $this->upsertPrice((int) $item['store_id'], $item['sku_code'], (int) $price);
+            $this->upsertListingPrice((int) $item['store_id'], $item['product_id'], $item['sku_code'], (int) $price);
         }
 
         return response()->json([
@@ -505,6 +517,12 @@ class ProductController extends Controller
      * tsb otomatis tidak muncul di hasil untuk SKU itu (di-skip). Bila ada SKU
      * yang sama sekali tak ditemukan di toko manapun yang dipilih → TOLAK, minta
      * user perbaiki file/pilihan toko dulu (bukan lanjut sebagian).
+     *
+     * Template Excel tetap per seller_sku saja (tanpa kolom product_id) — bila 1
+     * seller_sku ternyata terdaftar di >1 listing (product_id) pada toko yang
+     * sama, harga diterapkan ke SEMUA listing itu: satu baris preview per
+     * listing (bukan di-distinct jadi 1 baris), supaya user melihat eksplisit
+     * semua listing yang akan kena sebelum apply.
      */
     public function bulkPriceMatchExcel(Request $request)
     {
@@ -520,18 +538,22 @@ class ProductController extends Controller
         $priceBySku   = collect($data['items'])->keyBy(fn ($i) => strtoupper($i['seller_sku']));
         $rawSkuCodes  = collect($data['items'])->pluck('seller_sku')->all();
 
-        // Kolase-kan store (mis. MySQL collation _ci) menangani pencocokan tanpa
-        // peduli besar/kecil huruf; distinct() dedupe krn 1 sku_code bisa muncul
-        // di >1 listing_id pada toko yang sama.
         $rows = DB::table('tiktok_listing_skus as ts')
+            ->join('tiktok_listings as tl', function ($x) {
+                $x->on('tl.id', '=', 'ts.listing_id')->on('tl.store_id', '=', 'ts.store_id');
+            })
             ->join('stores as s', 's.id', '=', 'ts.store_id')
-            ->leftJoin('store_sku_prices as p', function ($x) {
-                $x->on('p.store_id', '=', 'ts.store_id')->on('p.sku_code', '=', 'ts.sku_code');
+            ->leftJoin('tiktok_listing_prices as p', function ($x) {
+                $x->on('p.store_id', '=', 'ts.store_id')
+                    ->on('p.product_id', '=', 'tl.product_id')
+                    ->on('p.sku_code', '=', 'ts.sku_code');
             })
             ->whereIn('ts.store_id', $storeIds)
             ->whereIn('ts.sku_code', $rawSkuCodes)
-            ->distinct()
-            ->get(['ts.store_id', 's.name as store_name', 'ts.sku_code', 'p.promotion_price as old_price']);
+            ->get([
+                'ts.store_id', 's.name as store_name', 'tl.product_id', 'ts.sku_code',
+                'p.promotion_price as old_price',
+            ]);
 
         $matchedKeys = [];
         $preview = $rows->map(function ($r) use ($priceBySku, &$matchedKeys) {
@@ -541,11 +563,12 @@ class ProductController extends Controller
             return [
                 'store_id'   => (int) $r->store_id,
                 'store_name' => $r->store_name,
+                'product_id' => (string) $r->product_id,
                 'sku_code'   => $r->sku_code,
                 'old_price'  => $r->old_price !== null ? (int) $r->old_price : null,
                 'new_price'  => (int) $priceBySku[$skuKey]['new_promotion_price'],
             ];
-        })->sortBy([['store_name', 'asc'], ['sku_code', 'asc']])->values();
+        })->sortBy([['store_name', 'asc'], ['sku_code', 'asc'], ['product_id', 'asc']])->values();
 
         $notFound = $priceBySku->keys()
             ->reject(fn ($k) => isset($matchedKeys[$k]))
@@ -584,26 +607,36 @@ class ProductController extends Controller
     }
 
     /**
-     * Set promotion_price untuk (store_id, sku_code); buat baris store_sku_prices
-     * baru (retail_price=0, match_sku diturunkan dari sku_code) bila belum ada.
+     * Set promotion_price satu listing (store_id, product_id, sku_code) di
+     * tiktok_listing_prices. UPDATE dulu (memicu trigger history), INSERT bila
+     * baris belum ada (sku_id diambil dari tiktok_listing_skus).
      */
-    private function upsertPrice(int $storeId, string $skuCode, int $promotionPrice): void
+    private function upsertListingPrice(int $storeId, string $productId, string $skuCode, int $promotionPrice): void
     {
         $now = now();
 
-        $updated = DB::table('store_sku_prices')
+        $updated = DB::table('tiktok_listing_prices')
             ->where('store_id', $storeId)
+            ->where('product_id', $productId)
             ->where('sku_code', $skuCode)
-            ->update(['promotion_price' => $promotionPrice, 'synced_at' => $now, 'updated_at' => $now]);
+            ->update(['promotion_price' => $promotionPrice, 'updated_at' => $now]);
 
         if (! $updated) {
-            DB::table('store_sku_prices')->insert([
+            $skuId = DB::table('tiktok_listing_skus as ts')
+                ->join('tiktok_listings as tl', function ($x) {
+                    $x->on('tl.id', '=', 'ts.listing_id')->on('tl.store_id', '=', 'ts.store_id');
+                })
+                ->where('ts.store_id', $storeId)
+                ->where('tl.product_id', $productId)
+                ->where('ts.sku_code', $skuCode)
+                ->value('ts.sku_id');
+
+            DB::table('tiktok_listing_prices')->insert([
                 'store_id'         => $storeId,
+                'product_id'       => $productId,
+                'sku_id'           => $skuId ?? 0,
                 'sku_code'         => $skuCode,
-                'match_sku'        => strtoupper(preg_replace('/-\d+$/', '', $skuCode)),
-                'retail_price'     => 0,
                 'promotion_price'  => $promotionPrice,
-                'synced_at'        => $now,
                 'created_at'       => $now,
                 'updated_at'       => $now,
             ]);

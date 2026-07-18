@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Store extends Model
@@ -18,16 +17,6 @@ class Store extends Model
         return strtoupper($value);
     }
 
-    // public function productAdStores(): HasMany
-    // {
-    //     return $this->hasMany(ProductAdStore::class);
-    // }
-
-    public function dailyStoreStats(): HasMany
-    {
-        return $this->hasMany(DailyStoreStat::class);
-    }
-
     public function tiktokListings(): HasMany
     {
         return $this->hasMany(TiktokListing::class);
@@ -36,12 +25,5 @@ class Store extends Model
     public function tiktokListingSkus(): HasMany
     {
         return $this->hasMany(TiktokListingSku::class);
-    }
-
-    public function productAds(): BelongsToMany
-    {
-        return $this->belongsToMany(ProductAd::class, 'product_ad_store')
-            ->using(ProductAdStore::class)
-            ->withTimestamps();
     }
 }

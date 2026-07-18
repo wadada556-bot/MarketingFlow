@@ -68,15 +68,17 @@
                 </td>
                 <td class="text-end" style="font-size:13px;white-space:nowrap">
                     <div>${rupiah(v.retail)}</div>
-                    <span class="products-field js-price-edit" data-sku="${encodeURIComponent(v.sku)}" data-promo="${v.promo ?? 0}" title="Ubah harga promo" style="margin-top:2px">
-                        <span style="font-size:11px;color:var(--md-on-surface-variant)">Promo:</span>
-                        <span class="js-promo-val">${rupiah(v.promo)}</span>
-                        <i class="bi bi-pencil"></i>
-                    </span>
+                    <div class="d-flex align-items-center justify-content-end flex-wrap gap-1" style="margin-top:2px">
+                        <span class="products-field js-price-edit" data-sku="${encodeURIComponent(v.sku)}" data-product-id="${v.product_id ?? ''}" data-promo="${v.promo ?? 0}" title="Ubah harga promo (khusus listing ini)">
+                            <span style="font-size:11px;color:var(--md-on-surface-variant)">Promo:</span>
+                            <span class="js-promo-val">${rupiah(v.promo)}</span>
+                            <i class="bi bi-pencil"></i>
+                        </span>
+                    </div>
                 </td>
                 <td class="text-center">
                     <button type="button" class="btn btn-sm js-price-history d-inline-flex align-items-center gap-1"
-                            data-sku="${encodeURIComponent(v.sku)}"
+                            data-sku="${encodeURIComponent(v.sku)}" data-product-id="${v.product_id ?? ''}"
                             title="Lihat histori perubahan harga"
                             style="background:var(--md-surface-container-high);color:var(--md-on-surface);border:1px solid var(--md-outline);border-radius:var(--md-shape-xs);font-size:12px;padding:2px 8px">
                         <i class="bi bi-clock-history" style="font-size:12px"></i> Histori
@@ -206,20 +208,26 @@
         subrow.after(tr);
         setToggleState(true);
 
+        loadVariantsDetail(subrow.dataset.productId, catalogRow, td)
+            .catch(() => { td.innerHTML = '<div style="padding:16px 44px;color:var(--md-error);font-size:13px">Gagal memuat varian.</div>'; });
+    });
+
+    // Fetch varian 1 listing (product_id) & render ke td detail yang sudah ada
+    // di DOM — dipakai saat expand baris PERTAMA KALI, dan juga untuk me-refresh
+    // detail setelah edit harga tanpa reload halaman penuh.
+    function loadVariantsDetail(productId, catalogRow, td) {
         // Ukur geometri SETELAH td disisipkan (colspan=5 langsung dpt lebar
         // baris penuh terlepas dari isinya), tapi SEBELUM konten varian
         // memenuhinya, supaya catalogRow jg belum sempat bergeser.
         const cols = computeDetailCols(catalogRow, td);
-
-        const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(subrow.dataset.productId)}&store_id=${STORE_ID ?? ''}${HPP_EMPTY ? '&hpp_empty=1' : ''}`;
-        fetch(url)
+        const url = `${VARIANTS_URL}?product_id=${encodeURIComponent(productId)}&store_id=${STORE_ID ?? ''}${HPP_EMPTY ? '&hpp_empty=1' : ''}`;
+        return fetch(url)
             .then(r => r.json())
             .then(d => {
                 td.innerHTML = buildDetail(d, cols);
                 alignDetailTableRight(catalogRow, td);
-            })
-            .catch(() => { td.innerHTML = '<div style="padding:16px 44px;color:var(--md-error);font-size:13px">Gagal memuat varian.</div>'; });
-    });
+            });
+    }
 
     // computeDetailCols() sudah menghitung lebar tabel supaya ujung kanannya
     // pas di ujung kolom Harga Jual baris induk — fungsi ini cuma koreksi
@@ -279,7 +287,7 @@
         modalBody.innerHTML = '<div style="padding:24px;text-align:center;color:var(--md-on-surface-variant);font-size:13px">Memuat histori…</div>';
         overlay.style.display = 'flex';
 
-        const url = `${PRICE_HISTORY_URL}?sku_code=${skuEnc}&store_id=${STORE_ID ?? ''}`;
+        const url = `${PRICE_HISTORY_URL}?sku_code=${skuEnc}&store_id=${STORE_ID ?? ''}&product_id=${btn.dataset.productId ?? ''}`;
         fetch(url)
             .then(r => r.json())
             .then(d => { modalBody.innerHTML = renderHistory(d); })
@@ -390,17 +398,23 @@
 
         if (priceMode === 'single') {
             const sku = decodeURIComponent(priceTarget.dataset.sku);
+            const productId = priceTarget.dataset.productId;
             fetch(UPDATE_PRICE_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-                body: JSON.stringify({ sku_code: sku, store_id: STORE_ID, promotion_price: val }),
+                body: JSON.stringify({ sku_code: sku, store_id: STORE_ID, product_id: productId, promotion_price: val }),
             })
             .then(r => r.ok ? r.json() : Promise.reject(r))
-            .then(d => {
-                const cell = priceTarget.closest('td');
-                cell.querySelector('.js-promo-val').innerHTML = rupiah(d.promotion_price);
-                priceTarget.dataset.promo = d.promotion_price;
+            .then(() => {
+                // Ambil referensi SEBELUM closePrice() — closePrice() menge-null-kan
+                // priceTarget, jadi harus dibaca duluan.
+                const detailRow = priceTarget.closest('.js-detail-row');
+                const subrow    = detailRow ? detailRow.previousElementSibling : null;
+                const catalogRow = subrow ? subrow.previousElementSibling : null;
+                const td = detailRow ? detailRow.querySelector('td') : null;
                 closePrice();
+                // Reload detail listing ini supaya tampilan harga selalu dari server.
+                if (td && catalogRow) loadVariantsDetail(productId, catalogRow, td).catch(() => {});
             })
             .catch(() => { alert('Gagal menyimpan harga promo. Coba lagi.'); })
             .finally(() => { priceSave.disabled = false; });
@@ -419,12 +433,13 @@
                     const span = row.querySelector('.js-promo-range');
                     if (span) span.innerHTML = rupiah(d.promotion_price);
 
-                    // Bila detail varian sudah ter-load, samakan tampilan tiap varian juga.
+                    // Bila detail varian sudah ter-load, reload supaya harga
+                    // tiap varian ikut akurat.
                     const subrow    = row.nextElementSibling;
                     const detailRow = subrow ? subrow.nextElementSibling : null;
                     if (detailRow && detailRow.classList.contains('js-detail-row')) {
-                        detailRow.querySelectorAll('.js-promo-val').forEach(span => { span.innerHTML = rupiah(d.promotion_price); });
-                        detailRow.querySelectorAll('.js-price-edit').forEach(btn => { btn.dataset.promo = d.promotion_price; });
+                        const td = detailRow.querySelector('td');
+                        if (td) loadVariantsDetail(productId, row, td).catch(() => {});
                     }
                 }
                 closePrice();
@@ -468,23 +483,27 @@
     const excelPreviewList          = document.getElementById('bulk-excel-preview-list');
 
     let bulkResults = [];      // hasil pencarian mentah dari server (mode 'paste')
-    let bulkChecked = new Set(); // key = `${store_id}|${sku_code}` (mode 'paste')
+    let bulkChecked = new Set(); // index baris di bulkResults yang dicentang (mode 'paste') — per listing, bukan per (store,sku)
     let bulkStep = 'search';   // 'search' | 'select' | 'confirm' | 'excel-stores' | 'excel-preview'
     let bulkMode = 'paste';    // 'paste' | 'excel'
-    const bulkKey = (r) => `${r.store_id}|${r.sku_code}`;
+    // Kunci listing: (store_id, product_id, sku_code) — harga tersimpan per
+    // listing (tiktok_listing_prices), jadi 2 Product ID yg kebetulan berbagi
+    // sku_code sama punya kunci berbeda & benar-benar independen.
+    const bulkPriceKey = (r) => `${r.store_id}|${r.product_id}|${r.sku_code}`;
 
     let excelItems = [];          // hasil parse: [{seller_sku, new_promotion_price}]
     let excelSelectedStores = new Set(); // store_id terpilih (number)
-    let excelPreviewRows = [];    // hasil match: [{store_id, store_name, sku_code, old_price, new_price}]
+    let excelPreviewRows = [];    // hasil match: [{store_id, store_name, product_id, sku_code, old_price, new_price}]
 
-    // Satu sku_code bisa muncul di beberapa listing (product_id) pada toko yg
-    // sama — checked-state disimpan per (store,sku), jadi harus dedupe di sini
-    // supaya SKU yg sama tak dihitung/dikirim dobel.
+    // Dedupe jaga-jaga bila hasil pencarian server kebetulan memuat baris
+    // (store_id, product_id, sku_code) yg identik lebih dari sekali.
     function bulkSelectedItems() {
         const seen = new Map();
-        bulkResults.forEach(r => {
-            const key = bulkKey(r);
-            if (bulkChecked.has(key) && !seen.has(key)) seen.set(key, r);
+        bulkChecked.forEach(idx => {
+            const r = bulkResults[idx];
+            if (!r) return;
+            const key = bulkPriceKey(r);
+            if (!seen.has(key)) seen.set(key, r);
         });
         return [...seen.values()];
     }
@@ -570,49 +589,43 @@
     bulkSearchBtn.addEventListener('click', runBulkSearch);
     bulkKeyword.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); runBulkSearch(); } });
 
-    // Denominator harus dihitung dari key unik (store,sku) — bukan bulkResults.length
-    // mentah, karena satu sku_code bisa muncul di >1 listing (product_id) pada toko
-    // yg sama sehingga bulkResults punya baris duplikat secara (store,sku).
-    function bulkUniqueKeyCount() {
-        return new Set(bulkResults.map(bulkKey)).size;
-    }
-
     function updateBulkCount() {
-        const total = bulkUniqueKeyCount();
-        bulkCountEl.textContent = `${bulkChecked.size} dari ${total} SKU dipilih`;
+        const total = bulkResults.length;
+        bulkCountEl.textContent = `${bulkChecked.size} dari ${total} baris dipilih`;
         bulkCheckAll.checked = total > 0 && bulkChecked.size === total;
     }
 
     function renderBulkResults() {
-        // Kelompokkan: toko → product_id → daftar sku.
+        // Kelompokkan: toko → product_id → daftar sku, sambil menyimpan index asli
+        // tiap baris (dipakai sebagai key checkbox level SKU) supaya listing yg
+        // sku_code-nya sama tapi product_id beda tetap bisa dicentang independen.
         const byStore = new Map();
-        bulkResults.forEach(r => {
+        bulkResults.forEach((r, idx) => {
             if (!byStore.has(r.store_id)) byStore.set(r.store_id, { name: r.store_name, byProduct: new Map() });
             const store = byStore.get(r.store_id);
             if (!store.byProduct.has(r.product_id)) store.byProduct.set(r.product_id, []);
-            store.byProduct.get(r.product_id).push(r);
+            store.byProduct.get(r.product_id).push({ row: r, idx });
         });
 
         let html = '';
         byStore.forEach((store, storeId) => {
-            const storeSkus = [...store.byProduct.values()].flat();
+            const storeEntries = [...store.byProduct.values()].flat();
             html += `<div style="border-bottom:1px solid var(--md-outline-variant,var(--md-outline))">
                 <div class="d-flex align-items-center gap-2 js-bulk-group" data-level="store" data-store="${storeId}"
                      style="padding:8px 12px;background:var(--md-surface-container-low);font-weight:600;font-size:13px;cursor:pointer">
                     <input type="checkbox" class="js-bulk-check" data-level="store" data-store="${storeId}">
                     <i class="bi bi-shop"></i> ${store.name}
-                    <span style="font-weight:400;color:var(--md-on-surface-variant);font-size:12px">(${storeSkus.length} SKU)</span>
+                    <span style="font-weight:400;color:var(--md-on-surface-variant);font-size:12px">(${storeEntries.length} SKU)</span>
                 </div>`;
-            store.byProduct.forEach((skus, productId) => {
+            store.byProduct.forEach((entries, productId) => {
                 html += `<div style="padding:6px 12px 6px 28px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--md-on-surface-variant)">
                     <input type="checkbox" class="js-bulk-check" data-level="product" data-store="${storeId}" data-product="${productId}">
                     Product ID: <span style="color:var(--md-on-surface)">${productId}</span>
-                    <span>(${skus.length} SKU)</span>
+                    <span>(${entries.length} SKU)</span>
                 </div>`;
-                skus.forEach(sku => {
-                    const key = bulkKey(sku);
+                entries.forEach(({ row: sku, idx }) => {
                     html += `<div style="padding:4px 12px 4px 48px;display:flex;align-items:center;gap:8px;font-size:12.5px">
-                        <input type="checkbox" class="js-bulk-check" data-level="sku" data-key="${encodeURIComponent(key)}">
+                        <input type="checkbox" class="js-bulk-check" data-level="sku" data-key="${idx}">
                         <span style="word-break:break-all">${sku.label ? sku.label + ' — ' : ''}${sku.sku_code}</span>
                         <span style="margin-left:auto;color:var(--md-on-surface-variant);white-space:nowrap">${rupiah(sku.promotion_price)}</span>
                     </div>`;
@@ -627,18 +640,23 @@
 
     function syncBulkCheckboxUi() {
         bulkResultsEl.querySelectorAll('.js-bulk-check[data-level="sku"]').forEach(cb => {
-            const key = decodeURIComponent(cb.dataset.key);
-            cb.checked = bulkChecked.has(key);
+            cb.checked = bulkChecked.has(Number(cb.dataset.key));
         });
         bulkResultsEl.querySelectorAll('.js-bulk-check[data-level="product"]').forEach(cb => {
             const storeId = cb.dataset.store, productId = cb.dataset.product;
-            const skus = bulkResults.filter(r => String(r.store_id) === storeId && r.product_id === productId);
-            cb.checked = skus.length > 0 && skus.every(r => bulkChecked.has(bulkKey(r)));
+            const indices = [];
+            bulkResults.forEach((r, idx) => { if (String(r.store_id) === storeId && r.product_id === productId) indices.push(idx); });
+            const allChecked = indices.length > 0 && indices.every(i => bulkChecked.has(i));
+            cb.checked = allChecked;
+            cb.indeterminate = !allChecked && indices.some(i => bulkChecked.has(i));
         });
         bulkResultsEl.querySelectorAll('.js-bulk-check[data-level="store"]').forEach(cb => {
             const storeId = cb.dataset.store;
-            const skus = bulkResults.filter(r => String(r.store_id) === storeId);
-            cb.checked = skus.length > 0 && skus.every(r => bulkChecked.has(bulkKey(r)));
+            const indices = [];
+            bulkResults.forEach((r, idx) => { if (String(r.store_id) === storeId) indices.push(idx); });
+            const allChecked = indices.length > 0 && indices.every(i => bulkChecked.has(i));
+            cb.checked = allChecked;
+            cb.indeterminate = !allChecked && indices.some(i => bulkChecked.has(i));
         });
     }
 
@@ -646,21 +664,21 @@
         const cb = e.target.closest('.js-bulk-check');
         if (!cb) return;
         const level = cb.dataset.level;
-        let affected = [];
+        let affectedIdx = [];
         if (level === 'sku') {
-            affected = [bulkResults.find(r => bulkKey(r) === decodeURIComponent(cb.dataset.key))].filter(Boolean);
+            affectedIdx = [Number(cb.dataset.key)];
         } else if (level === 'product') {
-            affected = bulkResults.filter(r => String(r.store_id) === cb.dataset.store && r.product_id === cb.dataset.product);
+            bulkResults.forEach((r, idx) => { if (String(r.store_id) === cb.dataset.store && r.product_id === cb.dataset.product) affectedIdx.push(idx); });
         } else if (level === 'store') {
-            affected = bulkResults.filter(r => String(r.store_id) === cb.dataset.store);
+            bulkResults.forEach((r, idx) => { if (String(r.store_id) === cb.dataset.store) affectedIdx.push(idx); });
         }
-        affected.forEach(r => { cb.checked ? bulkChecked.add(bulkKey(r)) : bulkChecked.delete(bulkKey(r)); });
+        affectedIdx.forEach(idx => { cb.checked ? bulkChecked.add(idx) : bulkChecked.delete(idx); });
         syncBulkCheckboxUi();
         updateBulkCount();
     });
 
     bulkCheckAll.addEventListener('change', function () {
-        bulkChecked = bulkCheckAll.checked ? new Set(bulkResults.map(bulkKey)) : new Set();
+        bulkChecked = bulkCheckAll.checked ? new Set(bulkResults.map((_, i) => i)) : new Set();
         syncBulkCheckboxUi();
         updateBulkCount();
     });
@@ -673,11 +691,11 @@
             const items = bulkSelectedItems();
             bulkConfirmPrice.textContent = rupiah(val).replace(/<[^>]+>/g, '-');
             bulkConfirmCount.textContent = items.length;
-            bulkConfirmList.innerHTML = items.map(r => `<div>${r.store_name} — ${r.sku_code}</div>`).join('');
+            bulkConfirmList.innerHTML = items.map(r => `<div>${r.store_name} — ${r.sku_code} <span style="color:var(--md-on-surface-variant);font-size:11px">(Product ID: ${r.product_id})</span></div>`).join('');
             bulkShowStep('confirm');
         } else if (bulkStep === 'confirm') {
             const val = Math.max(0, Math.floor(Number(bulkPriceIn.value) || 0));
-            const items = bulkSelectedItems().map(r => ({ store_id: r.store_id, sku_code: r.sku_code }));
+            const items = bulkSelectedItems().map(r => ({ store_id: r.store_id, product_id: r.product_id, sku_code: r.sku_code }));
             bulkNextBtn.disabled = true;
             fetch(BULK_APPLY_URL, {
                 method: 'POST',
@@ -696,7 +714,7 @@
             if (!excelSelectedStores.size) { alert('Pilih minimal satu toko.'); return; }
             runExcelMatch();
         } else if (bulkStep === 'excel-preview') {
-            const items = excelPreviewRows.map(r => ({ store_id: r.store_id, sku_code: r.sku_code, promotion_price: r.new_price }));
+            const items = excelPreviewRows.map(r => ({ store_id: r.store_id, product_id: r.product_id, sku_code: r.sku_code, promotion_price: r.new_price }));
             bulkNextBtn.disabled = true;
             fetch(BULK_APPLY_URL, {
                 method: 'POST',
@@ -820,7 +838,7 @@
                 </div>`;
             store.rows.forEach(r => {
                 html += `<div style="padding:5px 12px 5px 28px;display:flex;align-items:center;gap:8px;font-size:12.5px">
-                    <span style="word-break:break-all">${r.sku_code}</span>
+                    <span style="word-break:break-all">${r.sku_code} <span style="color:var(--md-on-surface-variant);font-size:11px">(Product ID: ${r.product_id})</span></span>
                     <span style="margin-left:auto;white-space:nowrap;color:var(--md-on-surface-variant)">
                         ${rupiah(r.old_price)} → <strong style="color:var(--md-on-surface)">${rupiah(r.new_price)}</strong>
                     </span>

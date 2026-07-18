@@ -124,11 +124,17 @@
                             @php
                                 $price = $row['prices'][$store->id] ?? null;
                                 $isDiffCell = $price !== null && $row['mode'] !== null && $price !== $row['mode'];
+                                $diverges = $row['diverges'][$store->id] ?? false;
                             @endphp
                             <td class="text-end"
                                 style="font-size:13.5px;color:{{ $isDiffCell ? 'var(--md-on-error-container)' : 'var(--md-on-surface)' }};
                                        background:{{ $isDiffCell ? 'var(--md-error-container)' : 'transparent' }}">
                                 {!! $rupiah($price) !!}
+                                @if($diverges)
+                                    <i class="bi bi-exclamation-triangle-fill"
+                                       style="font-size:10px;color:var(--md-tertiary);margin-left:4px"
+                                       title="Harga berbeda antar listing (Product ID) di toko ini — lihat detail per listing di menu Products"></i>
+                                @endif
                             </td>
                         @endforeach
                     </tr>
