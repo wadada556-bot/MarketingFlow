@@ -16,7 +16,10 @@ class PriceComparisonController extends Controller
         $diffOnly = $request->boolean('diff_only');
         $sortKey  = (string) $request->input('sort', 'selisih');
         $sortDir  = $request->input('dir') === 'asc' ? 'asc' : 'desc';
-        $perPage  = 50;
+        $perPage  = (int) $request->input('per_page', 20);
+        if (! in_array($perPage, [10, 20, 50, 100], true)) {
+            $perPage = 20;
+        }
         $page     = (int) $request->input('page', 1);
 
         $rows   = $service->buildRows($search, $diffOnly, $sortKey, $sortDir);
@@ -38,6 +41,7 @@ class PriceComparisonController extends Controller
             'sortKey' => $sortKey,
             'sortDir' => $sortDir,
             'totalAll' => $service->totalSkuCount(),
+            'perPage' => $perPage,
         ]);
     }
 

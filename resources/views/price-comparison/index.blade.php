@@ -144,25 +144,7 @@
     </div>
 
     @if($rows->isNotEmpty())
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4 products-pagination-bar">
-            <p class="mb-0" style="font-size:13px;color:var(--md-on-surface-variant)">
-                Total baris:
-                <strong style="color:var(--md-on-surface)">{{ number_format($rows->total(), 0, ',', '.') }}</strong>
-            </p>
-            <nav class="products-pager" aria-label="Navigasi halaman">
-                @if ($rows->onFirstPage())
-                    <span class="products-pager-btn disabled"><i class="bi bi-chevron-left"></i></span>
-                @else
-                    <a href="{{ $rows->previousPageUrl() }}" class="products-pager-btn"><i class="bi bi-chevron-left"></i></a>
-                @endif
-                <span class="products-pager-btn active">{{ $rows->currentPage() }} / {{ $rows->lastPage() }}</span>
-                @if ($rows->hasMorePages())
-                    <a href="{{ $rows->nextPageUrl() }}" class="products-pager-btn"><i class="bi bi-chevron-right"></i></a>
-                @else
-                    <span class="products-pager-btn disabled"><i class="bi bi-chevron-right"></i></span>
-                @endif
-            </nav>
-        </div>
+        @include('products.partials.pagination', ['catalog' => $rows, 'perPage' => $perPage])
     @endif
 
 @endsection
