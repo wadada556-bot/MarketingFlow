@@ -27,6 +27,12 @@ Route::get('/products/price/bulk-search', [ProductController::class, 'bulkPriceS
     ->name('products.bulk-price-search');
 Route::post('/products/price/bulk-apply', [ProductController::class, 'bulkPriceApply'])
     ->name('products.bulk-price-apply');
+Route::post('/products/price/bulk-excel-parse', [ProductController::class, 'bulkPriceParseExcel'])
+    ->name('products.bulk-price-excel-parse');
+Route::post('/products/price/bulk-excel-match', [ProductController::class, 'bulkPriceMatchExcel'])
+    ->name('products.bulk-price-excel-match');
+Route::get('/products/price/bulk-excel-template', [ProductController::class, 'bulkPriceExcelTemplate'])
+    ->name('products.bulk-price-excel-template');
 Route::resource('products', ProductController::class)->only(['index']);
 Route::resource('stores', StoreController::class);
 

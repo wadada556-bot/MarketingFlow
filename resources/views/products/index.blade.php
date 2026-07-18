@@ -19,6 +19,10 @@
     const BULK_PRICE_URL    = @json(route('products.bulk-update-price'));
     const BULK_SEARCH_URL   = @json(route('products.bulk-price-search'));
     const BULK_APPLY_URL    = @json(route('products.bulk-price-apply'));
+    const BULK_EXCEL_PARSE_URL    = @json(route('products.bulk-price-excel-parse'));
+    const BULK_EXCEL_MATCH_URL    = @json(route('products.bulk-price-excel-match'));
+    const BULK_EXCEL_TEMPLATE_URL = @json(route('products.bulk-price-excel-template'));
+    const ALL_STORES = @json($stores->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values());
     const STORE_ID          = @json($storeId);
     const HPP_EMPTY         = @json($hppEmpty);
     const CSRF              = document.querySelector('meta[name="csrf-token"]').content;
@@ -448,11 +452,30 @@
     const stepSearch = document.getElementById('bulk-price-step-search');
     const stepSelect = document.getElementById('bulk-price-step-select');
     const stepConfirm = document.getElementById('bulk-price-step-confirm');
+    const stepExcelStores  = document.getElementById('bulk-price-step-excel-stores');
+    const stepExcelPreview = document.getElementById('bulk-price-step-excel-preview');
 
-    let bulkResults = [];      // hasil pencarian mentah dari server
-    let bulkChecked = new Set(); // key = `${store_id}|${sku_code}`
-    let bulkStep = 'search';   // 'search' | 'select' | 'confirm'
+    const modeTabs        = document.querySelectorAll('.js-bulk-mode-tab');
+    const pastePanel       = document.getElementById('bulk-price-paste-panel');
+    const excelPanel        = document.getElementById('bulk-price-excel-panel');
+    const excelFileIn        = document.getElementById('bulk-excel-file');
+    const excelValidateBtn    = document.getElementById('bulk-excel-validate-btn');
+    const excelMsg             = document.getElementById('bulk-excel-msg');
+    const excelStoreList        = document.getElementById('bulk-excel-store-list');
+    const excelCheckAllStores    = document.getElementById('bulk-excel-check-all-stores');
+    const excelStoresMsg          = document.getElementById('bulk-excel-stores-msg');
+    const excelPreviewSummary      = document.getElementById('bulk-excel-preview-summary');
+    const excelPreviewList          = document.getElementById('bulk-excel-preview-list');
+
+    let bulkResults = [];      // hasil pencarian mentah dari server (mode 'paste')
+    let bulkChecked = new Set(); // key = `${store_id}|${sku_code}` (mode 'paste')
+    let bulkStep = 'search';   // 'search' | 'select' | 'confirm' | 'excel-stores' | 'excel-preview'
+    let bulkMode = 'paste';    // 'paste' | 'excel'
     const bulkKey = (r) => `${r.store_id}|${r.sku_code}`;
+
+    let excelItems = [];          // hasil parse: [{seller_sku, new_promotion_price}]
+    let excelSelectedStores = new Set(); // store_id terpilih (number)
+    let excelPreviewRows = [];    // hasil match: [{store_id, store_name, sku_code, old_price, new_price}]
 
     // Satu sku_code bisa muncul di beberapa listing (product_id) pada toko yg
     // sama — checked-state disimpan per (store,sku), jadi harus dedupe di sini
@@ -468,13 +491,27 @@
 
     function bulkShowStep(step) {
         bulkStep = step;
-        stepSearch.style.display  = step === 'search'  ? '' : 'none';
-        stepSelect.style.display  = step === 'select'  ? '' : 'none';
-        stepConfirm.style.display = step === 'confirm' ? '' : 'none';
+        stepSearch.style.display       = step === 'search'        ? '' : 'none';
+        stepSelect.style.display       = step === 'select'         ? '' : 'none';
+        stepConfirm.style.display      = step === 'confirm'         ? '' : 'none';
+        stepExcelStores.style.display  = step === 'excel-stores'     ? '' : 'none';
+        stepExcelPreview.style.display = step === 'excel-preview'     ? '' : 'none';
         bulkBackBtn.style.display = step === 'search' ? 'none' : '';
-        bulkNextBtn.textContent = step === 'confirm' ? 'Update Sekarang' : 'Lanjut';
+        bulkNextBtn.textContent = (step === 'confirm' || step === 'excel-preview') ? 'Update Sekarang' : 'Lanjut';
         bulkNextBtn.style.display = step === 'search' ? 'none' : '';
     }
+
+    function setBulkMode(mode) {
+        bulkMode = mode;
+        modeTabs.forEach(btn => {
+            const active = btn.dataset.mode === mode;
+            btn.style.borderBottomColor = active ? 'var(--md-primary)' : 'transparent';
+            btn.style.color = active ? 'var(--md-primary)' : 'var(--md-on-surface-variant)';
+        });
+        pastePanel.style.display = mode === 'paste' ? '' : 'none';
+        excelPanel.style.display = mode === 'excel' ? '' : 'none';
+    }
+    modeTabs.forEach(btn => btn.addEventListener('click', () => setBulkMode(btn.dataset.mode)));
 
     function bulkResetAll() {
         bulkResults = [];
@@ -483,6 +520,16 @@
         bulkPriceIn.value = '';
         bulkSearchMsg.textContent = 'Hasil dicari lintas semua toko. Pilih baris yang ingin diupdate di langkah berikutnya.';
         bulkResultsEl.innerHTML = '';
+
+        excelItems = [];
+        excelSelectedStores = new Set();
+        excelPreviewRows = [];
+        excelFileIn.value = '';
+        excelMsg.innerHTML = '';
+        excelStoreList.innerHTML = '';
+        excelCheckAllStores.checked = false;
+
+        setBulkMode('paste');
         bulkShowStep('search');
     }
 
@@ -645,13 +692,144 @@
             })
             .catch(() => { alert('Gagal menerapkan harga massal. Coba lagi.'); })
             .finally(() => { bulkNextBtn.disabled = false; });
+        } else if (bulkStep === 'excel-stores') {
+            if (!excelSelectedStores.size) { alert('Pilih minimal satu toko.'); return; }
+            runExcelMatch();
+        } else if (bulkStep === 'excel-preview') {
+            const items = excelPreviewRows.map(r => ({ store_id: r.store_id, sku_code: r.sku_code, promotion_price: r.new_price }));
+            bulkNextBtn.disabled = true;
+            fetch(BULK_APPLY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+                body: JSON.stringify({ items }),
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(r))
+            .then(() => {
+                alert('Harga promo berhasil diperbarui.');
+                closeBulk();
+                window.location.reload();
+            })
+            .catch(() => { alert('Gagal menerapkan harga massal. Coba lagi.'); })
+            .finally(() => { bulkNextBtn.disabled = false; });
         }
     });
 
     bulkBackBtn.addEventListener('click', function () {
         if (bulkStep === 'confirm') bulkShowStep('select');
         else if (bulkStep === 'select') bulkShowStep('search');
+        else if (bulkStep === 'excel-preview') bulkShowStep('excel-stores');
+        else if (bulkStep === 'excel-stores') bulkShowStep('search');
     });
+
+    // ── Mode "Upload Excel" ──────────────────────────────────────────────────
+    function renderExcelErrors(errors) {
+        excelMsg.innerHTML = `<div style="color:var(--md-error,#b3261e)">
+            <div class="mb-1">${errors.length > 1 ? 'File ditolak — perbaiki lalu upload ulang:' : 'File ditolak:'}</div>
+            <ul style="margin:0;padding-left:18px">${errors.map(e => `<li>${e}</li>`).join('')}</ul>
+        </div>`;
+    }
+
+    function runExcelValidate() {
+        if (!excelFileIn.files.length) { excelMsg.innerHTML = '<span style="color:var(--md-error,#b3261e)">Pilih file terlebih dahulu.</span>'; return; }
+        const fd = new FormData();
+        fd.append('file', excelFileIn.files[0]);
+        excelValidateBtn.disabled = true;
+        excelMsg.innerHTML = '<span style="color:var(--md-on-surface-variant)">Memvalidasi…</span>';
+        fetch(BULK_EXCEL_PARSE_URL, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            body: fd,
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+            if (!ok) { renderExcelErrors(d.errors || ['Gagal memvalidasi file.']); return; }
+            excelItems = d.items;
+            excelMsg.innerHTML = '';
+            renderExcelStoreList();
+            excelStoresMsg.textContent = `${excelItems.length} baris seller_sku terbaca dari file. Toko yang tidak menjual SKU tsb otomatis dilewati.`;
+            bulkShowStep('excel-stores');
+        })
+        .catch(() => { excelMsg.innerHTML = '<span style="color:var(--md-error,#b3261e)">Gagal memvalidasi file. Coba lagi.</span>'; })
+        .finally(() => { excelValidateBtn.disabled = false; });
+    }
+    excelValidateBtn.addEventListener('click', runExcelValidate);
+
+    function renderExcelStoreList() {
+        excelSelectedStores = new Set();
+        excelCheckAllStores.checked = false;
+        excelStoreList.innerHTML = ALL_STORES.map(s => `
+            <label class="d-flex align-items-center gap-2" style="padding:6px 12px;font-size:13px;cursor:pointer">
+                <input type="checkbox" class="js-excel-store-check" value="${s.id}"> ${s.name}
+            </label>
+        `).join('');
+    }
+
+    excelStoreList.addEventListener('change', function (e) {
+        const cb = e.target.closest('.js-excel-store-check');
+        if (!cb) return;
+        const id = Number(cb.value);
+        cb.checked ? excelSelectedStores.add(id) : excelSelectedStores.delete(id);
+        excelCheckAllStores.checked = excelSelectedStores.size === ALL_STORES.length;
+    });
+
+    excelCheckAllStores.addEventListener('change', function () {
+        excelSelectedStores = excelCheckAllStores.checked ? new Set(ALL_STORES.map(s => s.id)) : new Set();
+        excelStoreList.querySelectorAll('.js-excel-store-check').forEach(cb => { cb.checked = excelCheckAllStores.checked; });
+    });
+
+    function runExcelMatch() {
+        bulkNextBtn.disabled = true;
+        fetch(BULK_EXCEL_MATCH_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            body: JSON.stringify({ items: excelItems, store_ids: [...excelSelectedStores] }),
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+            if (!ok) {
+                const list = (d.not_found || []).map(s => `<li>${s}</li>`).join('');
+                excelStoresMsg.innerHTML = `<span style="color:var(--md-error,#b3261e)">
+                    SKU berikut tidak ditemukan di toko manapun yang dipilih — perbaiki file atau pilihan toko lalu ulangi:
+                    <ul style="margin:4px 0 0;padding-left:18px">${list}</ul>
+                </span>`;
+                return;
+            }
+            excelPreviewRows = d.preview;
+            renderExcelPreview();
+            bulkShowStep('excel-preview');
+        })
+        .catch(() => { excelStoresMsg.innerHTML = '<span style="color:var(--md-error,#b3261e)">Gagal mencocokkan SKU. Coba lagi.</span>'; })
+        .finally(() => { bulkNextBtn.disabled = false; });
+    }
+
+    function renderExcelPreview() {
+        const byStore = new Map();
+        excelPreviewRows.forEach(r => {
+            if (!byStore.has(r.store_id)) byStore.set(r.store_id, { name: r.store_name, rows: [] });
+            byStore.get(r.store_id).rows.push(r);
+        });
+        const uniqueSkus = new Set(excelPreviewRows.map(r => r.sku_code)).size;
+        excelPreviewSummary.innerHTML = `Menerapkan harga baru ke <strong>${excelPreviewRows.length}</strong> baris
+            (${uniqueSkus} SKU unik di ${byStore.size} toko). Toko lain yang tidak menjual SKU terkait dilewati otomatis.`;
+
+        let html = '';
+        byStore.forEach((store, storeId) => {
+            html += `<div style="border-bottom:1px solid var(--md-outline-variant,var(--md-outline))">
+                <div style="padding:8px 12px;background:var(--md-surface-container-low);font-weight:600;font-size:13px">
+                    <i class="bi bi-shop"></i> ${store.name} <span style="font-weight:400;color:var(--md-on-surface-variant);font-size:12px">(${store.rows.length} SKU)</span>
+                </div>`;
+            store.rows.forEach(r => {
+                html += `<div style="padding:5px 12px 5px 28px;display:flex;align-items:center;gap:8px;font-size:12.5px">
+                    <span style="word-break:break-all">${r.sku_code}</span>
+                    <span style="margin-left:auto;white-space:nowrap;color:var(--md-on-surface-variant)">
+                        ${rupiah(r.old_price)} → <strong style="color:var(--md-on-surface)">${rupiah(r.new_price)}</strong>
+                    </span>
+                </div>`;
+            });
+            html += `</div>`;
+        });
+        excelPreviewList.innerHTML = html;
+    }
 })();
 </script>
 @endpush
@@ -883,22 +1061,71 @@
                 </button>
             </div>
 
-            {{-- Langkah 1: cari --}}
+            {{-- Langkah 1: pilih mode + cari / upload --}}
             <div id="bulk-price-step-search" style="padding:20px;overflow:auto">
-                <label for="bulk-price-keyword" class="mb-1 d-block" style="font-size:12.5px;color:var(--md-on-surface-variant)">
-                    Tempel / ketik seller SKU (boleh sebagian, mis. "T01-PTAA")
-                </label>
-                <div class="d-flex gap-2">
-                    <input type="text" id="bulk-price-keyword" class="form-control" placeholder="cth: T01-PTAA"
-                           style="border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
-                    <button type="button" id="bulk-price-search-btn"
-                            style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 18px;white-space:nowrap">
-                        Cari
+                {{-- Tab toggle mode --}}
+                <div class="d-flex gap-2 mb-3" style="border-bottom:1px solid var(--md-outline-variant,var(--md-outline))">
+                    <button type="button" id="bulk-mode-paste" class="js-bulk-mode-tab"
+                            data-mode="paste"
+                            style="background:transparent;border:none;border-bottom:2px solid var(--md-primary);color:var(--md-primary);font-size:13.5px;font-weight:600;padding:8px 4px;margin-bottom:-1px">
+                        Tempel SKU
+                    </button>
+                    <button type="button" id="bulk-mode-excel" class="js-bulk-mode-tab"
+                            data-mode="excel"
+                            style="background:transparent;border:none;border-bottom:2px solid transparent;color:var(--md-on-surface-variant);font-size:13.5px;font-weight:600;padding:8px 4px;margin-bottom:-1px">
+                        Upload Excel
                     </button>
                 </div>
-                <p id="bulk-price-search-msg" class="mb-0 mt-2" style="font-size:12px;color:var(--md-on-surface-variant)">
-                    Hasil dicari lintas semua toko. Pilih baris yang ingin diupdate di langkah berikutnya.
-                </p>
+
+                {{-- Panel: tempel SKU (existing) --}}
+                <div id="bulk-price-paste-panel">
+                    <label for="bulk-price-keyword" class="mb-1 d-block" style="font-size:12.5px;color:var(--md-on-surface-variant)">
+                        Tempel / ketik seller SKU (boleh sebagian, mis. "T01-PTAA")
+                    </label>
+                    <div class="d-flex gap-2">
+                        <input type="text" id="bulk-price-keyword" class="form-control" placeholder="cth: T01-PTAA"
+                               style="border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
+                        <button type="button" id="bulk-price-search-btn"
+                                style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 18px;white-space:nowrap">
+                            Cari
+                        </button>
+                    </div>
+                    <p id="bulk-price-search-msg" class="mb-0 mt-2" style="font-size:12px;color:var(--md-on-surface-variant)">
+                        Hasil dicari lintas semua toko. Pilih baris yang ingin diupdate di langkah berikutnya.
+                    </p>
+                </div>
+
+                {{-- Panel: upload Excel (baru) --}}
+                <div id="bulk-price-excel-panel" style="display:none">
+                    <p class="mb-2" style="font-size:12.5px;color:var(--md-on-surface-variant)">
+                        File .xlsx dgn kolom <strong>seller_sku</strong> (A) &amp; <strong>new_promotion_price</strong> (B) mulai baris 2.
+                        <a href="{{ route('products.bulk-price-excel-template') }}" style="color:var(--md-primary)">Download template</a>.
+                    </p>
+                    <div class="d-flex gap-2">
+                        <input type="file" id="bulk-excel-file" accept=".xlsx,.xls" class="form-control"
+                               style="border-color:var(--md-outline);font-size:13.5px;background:var(--md-surface);color:var(--md-on-surface)">
+                        <button type="button" id="bulk-excel-validate-btn"
+                                style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 18px;white-space:nowrap">
+                            Validasi File
+                        </button>
+                    </div>
+                    <div id="bulk-excel-msg" class="mt-2" style="font-size:12.5px"></div>
+                </div>
+            </div>
+
+            {{-- Langkah Excel-A: pilih toko target --}}
+            <div id="bulk-price-step-excel-stores" style="display:none;padding:16px 20px;overflow:auto;flex:1">
+                <label class="d-flex align-items-center gap-2 mb-2" style="font-size:13px;font-weight:600">
+                    <input type="checkbox" id="bulk-excel-check-all-stores"> Pilih Semua Toko
+                </label>
+                <div id="bulk-excel-store-list" style="border:1px solid var(--md-outline-variant,var(--md-outline));border-radius:var(--md-shape-xs);max-height:38vh;overflow:auto;padding:4px 0"></div>
+                <p id="bulk-excel-stores-msg" class="mb-0 mt-2" style="font-size:12px;color:var(--md-on-surface-variant)"></p>
+            </div>
+
+            {{-- Langkah Excel-B: pratinjau hasil pencocokan --}}
+            <div id="bulk-price-step-excel-preview" style="display:none;padding:16px 20px;overflow:auto;flex:1">
+                <p id="bulk-excel-preview-summary" class="mb-2" style="font-size:13.5px"></p>
+                <div id="bulk-excel-preview-list" style="max-height:44vh;overflow:auto;border:1px solid var(--md-outline-variant,var(--md-outline));border-radius:var(--md-shape-xs)"></div>
             </div>
 
             {{-- Langkah 2: hasil + pilih + isi harga --}}

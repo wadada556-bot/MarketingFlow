@@ -139,7 +139,16 @@ class ProductController extends Controller
                 DB::table('jubelio_inventory')->max(DB::raw('COALESCE(synced_at, updated_at)'))
             ),
             ['label' => 'Harga Promo', 'hint' => 'scrape Tokopedia'] + $freshFmt(
-                DB::table('store_sku_prices')->where('store_id', $storeId)->max(DB::raw('COALESCE(synced_at, updated_at)'))
+                // Patokan "kapan diperbarui" = perubahan harga NYATA terakhir
+                // (store_sku_price_histories.changed_at, diisi trigger hanya saat
+                // nilai berubah) — bukan store_sku_prices.synced_at yang ikut
+                // ter-update tiap sync berjalan meski harga sama persis, sehingga
+                // sebelumnya label ini menyesatkan (selalu "baru saja" tiap jam
+                // sync jalan, walau harga tak berubah). Fallback ke synced_at bila
+                // toko ini belum pernah punya histori (mis. semua harga masih
+                // sama sejak insert pertama, trigger cuma jalan di UPDATE).
+                DB::table('store_sku_price_histories')->where('store_id', $storeId)->max('changed_at')
+                    ?? DB::table('store_sku_prices')->where('store_id', $storeId)->max(DB::raw('COALESCE(synced_at, updated_at)'))
             ),
             ['label' => 'Product ID TikTok', 'hint' => 'import TikTok Seller Center'] + $freshFmt(
                 DB::table('tiktok_listings')->where('store_id', $storeId)->max('created_at')
@@ -382,27 +391,195 @@ class ProductController extends Controller
     }
 
     /**
-     * Terapkan satu harga promo baru ke sekumpulan (store_id, sku_code) yang
-     * dipilih user di popup "Update Harga Massal" (bisa lintas toko/produk).
-     * Reuse upsertPrice() yang sama dgn updatePrice()/bulkUpdatePrice().
+     * Terapkan harga promo ke sekumpulan (store_id, sku_code) yang dipilih user
+     * di popup "Update Harga Massal" (bisa lintas toko/produk). Reuse upsertPrice()
+     * yang sama dgn updatePrice()/bulkUpdatePrice(). Mendukung 2 mode harga:
+     * - satu harga global (`promotion_price` di root) untuk mode "Tempel SKU",
+     * - harga per-item (`items.*.promotion_price`) untuk mode "Upload Excel"
+     *   yang tiap SKU-nya bisa punya harga baru berbeda.
      */
     public function bulkPriceApply(Request $request)
     {
         $data = $request->validate([
-            'items'                    => ['required', 'array', 'min:1'],
-            'items.*.store_id'         => ['required', 'integer', 'exists:stores,id'],
-            'items.*.sku_code'         => ['required', 'string', 'exists:jubelio_inventory,sku_code'],
-            'promotion_price'          => ['required', 'integer', 'min:0'],
+            'items'                        => ['required', 'array', 'min:1'],
+            'items.*.store_id'             => ['required', 'integer', 'exists:stores,id'],
+            'items.*.sku_code'             => ['required', 'string', 'exists:jubelio_inventory,sku_code'],
+            'items.*.promotion_price'      => ['nullable', 'integer', 'min:0'],
+            'promotion_price'              => ['nullable', 'integer', 'min:0'],
         ]);
 
         foreach ($data['items'] as $item) {
-            $this->upsertPrice((int) $item['store_id'], $item['sku_code'], $data['promotion_price']);
+            $price = $item['promotion_price'] ?? $data['promotion_price'] ?? null;
+            abort_if($price === null, 422, 'Setiap item harus punya harga promo (baik per-item maupun global).');
+            $this->upsertPrice((int) $item['store_id'], $item['sku_code'], (int) $price);
         }
 
         return response()->json([
-            'ok'               => true,
-            'count'            => count($data['items']),
-            'promotion_price'  => (int) $data['promotion_price'],
+            'ok'    => true,
+            'count' => count($data['items']),
+        ]);
+    }
+
+    /**
+     * Parse + validasi file Excel untuk mode "Upload Excel" pada popup "Update
+     * Harga Massal". Format wajib: baris 1 header "seller_sku" (kolom A) &
+     * "new_promotion_price" (kolom B), baris berikutnya data. Baris kosong penuh
+     * diabaikan; SKU kosong/duplikat atau harga tidak valid → TOLAK SELURUH FILE
+     * dgn daftar error per baris (bukan skip diam-diam), supaya user tahu persis
+     * apa yang harus diperbaiki sebelum upload ulang.
+     */
+    public function bulkPriceParseExcel(Request $request)
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:5120'],
+        ]);
+
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($request->file('file')->getRealPath());
+        } catch (\Throwable $e) {
+            return response()->json(['errors' => ['File tidak bisa dibaca. Pastikan file .xlsx valid.']], 422);
+        }
+
+        $sheet  = $spreadsheet->getActiveSheet();
+        $header = [
+            strtolower(trim((string) $sheet->getCell('A1')->getValue())),
+            strtolower(trim((string) $sheet->getCell('B1')->getValue())),
+        ];
+        if ($header !== ['seller_sku', 'new_promotion_price']) {
+            return response()->json([
+                'errors' => ['Header kolom tidak sesuai. Baris 1 harus "seller_sku" (kolom A) dan "new_promotion_price" (kolom B) — gunakan template.'],
+            ], 422);
+        }
+
+        $items  = [];
+        $errors = [];
+        $seen   = []; // SKU (uppercase) => nomor baris pertama kemunculan
+
+        for ($row = 2; $row <= $sheet->getHighestDataRow(); $row++) {
+            $skuRaw   = trim((string) $sheet->getCell("A{$row}")->getValue());
+            $priceRaw = $sheet->getCell("B{$row}")->getValue();
+            $priceStr = trim((string) $priceRaw);
+
+            if ($skuRaw === '' && $priceStr === '') {
+                continue; // baris kosong penuh, abaikan
+            }
+            if ($skuRaw === '') {
+                $errors[] = "Baris {$row}: seller_sku kosong.";
+
+                continue;
+            }
+
+            $skuKey = strtoupper($skuRaw);
+            if (isset($seen[$skuKey])) {
+                $errors[] = "Baris {$row}: seller_sku \"{$skuRaw}\" duplikat dengan baris {$seen[$skuKey]}.";
+
+                continue;
+            }
+            if ($priceStr === '' || ! is_numeric($priceStr) || (float) $priceStr < 0) {
+                $errors[] = "Baris {$row}: new_promotion_price harus angka ≥ 0 (ditemukan: \"{$priceStr}\").";
+
+                continue;
+            }
+
+            $seen[$skuKey] = $row;
+            $items[] = [
+                'seller_sku'          => $skuRaw,
+                'new_promotion_price' => (int) round((float) $priceStr),
+            ];
+        }
+
+        if (! empty($errors)) {
+            return response()->json(['errors' => $errors], 422);
+        }
+        if (empty($items)) {
+            return response()->json(['errors' => ['File tidak berisi data. Isi minimal 1 baris seller_sku + harga.']], 422);
+        }
+
+        return response()->json(['items' => $items]);
+    }
+
+    /**
+     * Cocokkan seller_sku (dari hasil parse Excel) ke toko-toko yang dipilih user
+     * — match EXACT ke tiktok_listing_skus.sku_code (bukan LIKE, beda dgn
+     * bulkPriceSearch yang untuk pencarian bebas). Toko yang tidak menjual SKU
+     * tsb otomatis tidak muncul di hasil untuk SKU itu (di-skip). Bila ada SKU
+     * yang sama sekali tak ditemukan di toko manapun yang dipilih → TOLAK, minta
+     * user perbaiki file/pilihan toko dulu (bukan lanjut sebagian).
+     */
+    public function bulkPriceMatchExcel(Request $request)
+    {
+        $data = $request->validate([
+            'items'                       => ['required', 'array', 'min:1'],
+            'items.*.seller_sku'          => ['required', 'string'],
+            'items.*.new_promotion_price' => ['required', 'integer', 'min:0'],
+            'store_ids'                   => ['required', 'array', 'min:1'],
+            'store_ids.*'                 => ['integer', 'exists:stores,id'],
+        ]);
+
+        $storeIds     = array_map('intval', $data['store_ids']);
+        $priceBySku   = collect($data['items'])->keyBy(fn ($i) => strtoupper($i['seller_sku']));
+        $rawSkuCodes  = collect($data['items'])->pluck('seller_sku')->all();
+
+        // Kolase-kan store (mis. MySQL collation _ci) menangani pencocokan tanpa
+        // peduli besar/kecil huruf; distinct() dedupe krn 1 sku_code bisa muncul
+        // di >1 listing_id pada toko yang sama.
+        $rows = DB::table('tiktok_listing_skus as ts')
+            ->join('stores as s', 's.id', '=', 'ts.store_id')
+            ->leftJoin('store_sku_prices as p', function ($x) {
+                $x->on('p.store_id', '=', 'ts.store_id')->on('p.sku_code', '=', 'ts.sku_code');
+            })
+            ->whereIn('ts.store_id', $storeIds)
+            ->whereIn('ts.sku_code', $rawSkuCodes)
+            ->distinct()
+            ->get(['ts.store_id', 's.name as store_name', 'ts.sku_code', 'p.promotion_price as old_price']);
+
+        $matchedKeys = [];
+        $preview = $rows->map(function ($r) use ($priceBySku, &$matchedKeys) {
+            $skuKey = strtoupper($r->sku_code);
+            $matchedKeys[$skuKey] = true;
+
+            return [
+                'store_id'   => (int) $r->store_id,
+                'store_name' => $r->store_name,
+                'sku_code'   => $r->sku_code,
+                'old_price'  => $r->old_price !== null ? (int) $r->old_price : null,
+                'new_price'  => (int) $priceBySku[$skuKey]['new_promotion_price'],
+            ];
+        })->sortBy([['store_name', 'asc'], ['sku_code', 'asc']])->values();
+
+        $notFound = $priceBySku->keys()
+            ->reject(fn ($k) => isset($matchedKeys[$k]))
+            ->map(fn ($k) => $priceBySku[$k]['seller_sku'])
+            ->values();
+
+        if ($notFound->isNotEmpty()) {
+            return response()->json(['not_found' => $notFound->all()], 422);
+        }
+
+        return response()->json(['preview' => $preview->all()]);
+    }
+
+    /**
+     * Unduh template .xlsx kosong (header + 1 baris contoh) untuk mode
+     * "Upload Excel" pada popup "Update Harga Massal".
+     */
+    public function bulkPriceExcelTemplate()
+    {
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setCellValue('A1', 'seller_sku');
+        $sheet->setCellValue('B1', 'new_promotion_price');
+        $sheet->setCellValueExplicit('A2', 'CONTOH-SKU-1', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('B2', 15000);
+        $sheet->getColumnDimension('A')->setWidth(26);
+        $sheet->getColumnDimension('B')->setWidth(22);
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, 'template_update_harga_massal.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
