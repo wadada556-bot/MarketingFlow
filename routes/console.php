@@ -10,6 +10,6 @@ Artisan::command('inspire', function () {
 // ── Jadwal otomatis ────────────────────────────────────────────────────────
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('hpp:sync')->dailyAt('08:30')->timezone('Asia/Jakarta')->withoutOverlapping();
-// Stok+HPP+PO Jubelio (full katalog) -> tabel jubelio_inventory (dipakai menu Products)
-Schedule::command('jubelio:sync-inventory')->everyThirtyMinutes()->withoutOverlapping();
+// Stok+HPP(insert baru)+PO Jubelio (full katalog) -> tabel products (dipakai menu Products)
+Schedule::command('jubelio:sync-inventory')->dailyAt('23:45')->timezone('Asia/Jakarta')->withoutOverlapping();
+Schedule::command('hpp:sync')->dailyAt('00:00')->timezone('Asia/Jakarta')->withoutOverlapping();
