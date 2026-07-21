@@ -10,7 +10,7 @@ class JubelioApiService
     private const LOGIN_URL = 'https://api2.jubelio.com/login';
     private const INV_URL   = 'https://open.jubelio.com/core-api/inventory/v2/';
     private const PO_URL    = 'https://open.jubelio.com/core-api/inventory/v2/inbound-purchase-not-fulfilled/';
-    private const PAGE_SIZE = 100;
+    private const PAGE_SIZE = 200; // maksimum yang diterima Jubelio
 
     // Rate limit Jubelio = 1000 req/menit. Pakai 950 sebagai plafon (sisakan margin).
     private const RATE_MAX_PER_MIN = 950;
@@ -56,47 +56,6 @@ class JubelioApiService
         $response->throw();
 
         return $response->json('token');
-    }
-
-    /**
-     * Fetch all HPP (last_cogs / average_cost) from Jubelio inventory.
-     *
-     * @return array<string, int>  [item_code => hpp_in_rupiah]
-     * @throws \Exception
-     */
-    public function fetchAllHpp(): array
-    {
-        $token  = $this->login();
-        $result = [];
-
-        $collect = function (array $items) use (&$result): void {
-            foreach ($items as $item) {
-                $code = trim((string) ($item['item_code'] ?? ''));
-                if ($code === '') {
-                    continue;
-                }
-                $result[$code] = (int) round((float) ($item['last_cogs'] ?? $item['average_cost'] ?? 0));
-            }
-        };
-
-        $this->fetchAllPagesPooled(
-            fetchOne: fn (int $p) => $this->fetchPage($token, $p),
-            buildPooled: fn ($pool, int $p) => $pool->as((string) $p)
-                ->withoutVerifying()->timeout(90)
-                ->withHeaders(['Authorization' => $token])
-                ->get(self::INV_URL, [
-                    'page'           => $p,
-                    'page_size'      => self::PAGE_SIZE,
-                    'sort_direction' => 'NONE',
-                ]),
-            collect: $collect,
-            pageSize: self::PAGE_SIZE,
-            label: 'HPP',
-        );
-
-        Log::info('[Jubelio] HPP sync selesai', ['total_sku' => count($result)]);
-
-        return $result;
     }
 
     /**
@@ -406,7 +365,7 @@ class JubelioApiService
     {
         $token      = $this->login();
         $result     = [];
-        $poPageSize = self::PAGE_SIZE * 2;
+        $poPageSize = self::PAGE_SIZE; // sudah 200 (maks Jubelio); jangan dikali lagi
 
         $collect = function (array $items) use (&$result): void {
             foreach ($items as $item) {

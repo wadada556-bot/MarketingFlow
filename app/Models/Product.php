@@ -7,8 +7,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Master produk — 1 baris per SKU fisik. Sumber data: sync Jubelio
- * (jubelio:sync-inventory utk stok/PO/label, hpp:sync utk HPP) + edit HPP
- * manual dari menu Products. hpp = 0 berarti "belum terisi".
+ * (jubelio:sync-inventory utk stok/PO/label + HPP & deteksi perubahannya)
+ * + edit HPP manual dari menu Products. hpp = 0 berarti "belum terisi".
  */
 class Product extends Model
 {

@@ -10,8 +10,9 @@ Artisan::command('inspire', function () {
 // ── Jadwal otomatis ────────────────────────────────────────────────────────
 use Illuminate\Support\Facades\Schedule;
 
-// Stok+HPP(insert baru)+PO Jubelio (full katalog) -> tabel products (dipakai menu Products)
-Schedule::command('jubelio:sync-inventory')->dailyAt('23:45')->timezone('Asia/Jakarta')->withoutOverlapping();
-Schedule::command('hpp:sync')->dailyAt('00:00')->timezone('Asia/Jakarta')->withoutOverlapping();
-// Arsip Excel produk per toko, harian (termasuk weekend) -> storage/app/product-snapshots, rolling 7 hari
-Schedule::command('products:snapshot-export')->dailyAt('01:00')->timezone('Asia/Jakarta')->withoutOverlapping();
+// Stok + HPP (deteksi perubahan + email) + PO Jubelio (full katalog) -> tabel products.
+// Satu sync menutup data harian sedekat mungkin dengan pergantian hari.
+Schedule::command('jubelio:sync-inventory')->dailyAt('23:58')->timezone('Asia/Jakarta')->withoutOverlapping();
+// Arsip Excel produk per toko, harian (termasuk weekend) -> storage/app/product-snapshots, rolling 7 hari.
+// Membaca DB yang sudah final (products hanya berubah sekali/hari), jadi aman setelah tengah malam.
+Schedule::command('products:snapshot-export')->dailyAt('00:05')->timezone('Asia/Jakarta')->withoutOverlapping();

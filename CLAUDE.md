@@ -24,10 +24,13 @@ on dev AND prod (user had a full backup; see migration `2026_07_18_100002_drop_u
 
 Data sources today:
 - **Jubelio** (ERP/warehouse) — stock, HPP (cost price), PO quantities → **`products`** (master
-  table, 1 row per physical SKU). Ownership of `hpp` is split by WRITER, not by table:
-  `jubelio:sync-inventory` (every 30 min) updates stock/PO/labels but deliberately does NOT update
-  `hpp`; `hpp:sync` (daily 08:30) is the only sync that writes `hpp`, which lets it use the stored
-  value itself as the change-detection baseline for the HPP-change email.
+  table, 1 row per physical SKU). A single daily sync `jubelio:sync-inventory` (23:58 WIB) writes
+  everything: it upserts stock/PO/labels AND updates `hpp` (guarded: skips HPP=0 so manual bundling
+  values are never overwritten) plus does HPP change-detection for the email. The Jubelio inventory
+  endpoint returns stock and HPP in the same response, so both come from one `fetchAllInventory()`
+  pass (page_size 200) — there is no separate HPP fetch. Because this command is the sole HPP writer
+  from sync, the stored value acts as the change-detection baseline (vs the previous run). The
+  standalone `hpp:sync` command was removed (folded into `jubelio:sync-inventory` 2026-07-21).
 - **TikTok Seller Center** — product/SKU listings per store → `tiktok_listings`,
   `tiktok_listing_skus`. **The external listing importer was deleted 2026-07-16** (repo
   `C:\generate-diskon-tiktok`) — no external process writes ANY table anymore; a future importer
