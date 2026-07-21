@@ -279,15 +279,40 @@ class ProductController extends Controller
             ->values();
 
         $snapshots = $dates->map(function ($date) use ($baseDir) {
-            $files = collect(Storage::disk('local')->files("{$baseDir}/{$date}"))
+            $dir = "{$baseDir}/{$date}";
+
+            // manifest.json (ditulis saat export) memberi jumlah baris per file tanpa
+            // membuka .xlsx. Folder lama tanpa manifest → rows null (UI tampilkan "—").
+            $manifest = [];
+            if (Storage::disk('local')->exists("{$dir}/manifest.json")) {
+                $manifest = json_decode(Storage::disk('local')->get("{$dir}/manifest.json"), true) ?: [];
+            }
+
+            $files = collect(Storage::disk('local')->files($dir))
                 ->map(fn ($path) => basename($path))
+                ->reject(fn ($name) => $name === 'manifest.json') // manifest bukan file unduhan
                 ->sort()
-                ->values();
+                ->values()
+                ->map(fn ($name) => [
+                    'name' => $name,
+                    'size' => $this->formatBytes(Storage::disk('local')->size("{$dir}/{$name}")),
+                    'rows' => $manifest[$name]['rows'] ?? null,
+                ]);
 
             return ['date' => $date, 'files' => $files];
         });
 
         return view('products.snapshots', compact('snapshots'));
+    }
+
+    /** Format byte jadi string ringkas (KB/MB) untuk tampilan arsip. */
+    private function formatBytes(int $bytes): string
+    {
+        if ($bytes >= 1048576) {
+            return round($bytes / 1048576, 1) . ' MB';
+        }
+
+        return max(1, (int) round($bytes / 1024)) . ' KB';
     }
 
     /**
@@ -306,9 +331,36 @@ class ProductController extends Controller
     }
 
     /**
+     * Download semua .xlsx satu tanggal sebagai satu .zip. $date divalidasi ketat
+     * (whitelist regex) sebelum dipakai sbg path — sama seperti downloadSnapshot().
+     * Zip dibuat ke file temp lalu dihapus setelah terkirim.
+     */
+    public function downloadAllSnapshots(string $date)
+    {
+        abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date), 404);
+
+        $dir   = "product-snapshots/{$date}";
+        $files = collect(Storage::disk('local')->files($dir))
+            ->filter(fn ($path) => str_ends_with($path, '.xlsx'))
+            ->values();
+        abort_if($files->isEmpty(), 404);
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'snap') . '.zip';
+        $zip     = new \ZipArchive;
+        abort_unless($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true, 500);
+
+        foreach ($files as $path) {
+            $zip->addFile(Storage::disk('local')->path($path), basename($path));
+        }
+        $zip->close();
+
+        return response()->download($zipPath, "snapshot_{$date}.zip")->deleteFileAfterSend();
+    }
+
+    /**
      * Isi/ubah HPP satu SKU secara manual (dipakai untuk produk bundling yang
      * HPP-nya tidak tersedia di Jubelio). Nilai ini tak akan tertimpa saat sync
-     * selama Jubelio mengirim 0 (lihat SyncHpp). hpp = 0 berarti "belum terisi".
+     * selama Jubelio mengirim 0 (lihat SyncJubelioInventory). hpp = 0 berarti "belum terisi".
      */
     public function updateHpp(Request $request)
     {

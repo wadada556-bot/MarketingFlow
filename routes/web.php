@@ -16,6 +16,9 @@ Route::get('/products/export', [ProductController::class, 'export'])
     ->name('products.export');
 Route::get('/products/snapshots', [ProductController::class, 'snapshots'])
     ->name('products.snapshots');
+// Harus sebelum route {date}/{file} di bawah, agar "download-all" tak tertangkap sbg {file}.
+Route::get('/products/snapshots/{date}/download-all', [ProductController::class, 'downloadAllSnapshots'])
+    ->name('products.snapshots.download-all');
 Route::get('/products/snapshots/{date}/{file}', [ProductController::class, 'downloadSnapshot'])
     ->name('products.snapshots.download');
 Route::post('/products/hpp', [ProductController::class, 'updateHpp'])
