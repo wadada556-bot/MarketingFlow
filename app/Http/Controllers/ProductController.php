@@ -7,6 +7,7 @@ use App\Models\Store;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -262,6 +263,46 @@ class ProductController extends Controller
         $filename = 'products_' . Str::slug($store->name, '_') . '_' . now()->format('Y-m-d_His') . '.xlsx';
 
         return Excel::download(new StoreProductsExport($storeId), $filename);
+    }
+
+    /**
+     * Daftar arsip snapshot Excel harian (dibuat otomatis via `products:snapshot-export`,
+     * lihat routes/console.php), terbaru dulu. Tiap tanggal berisi 1 file per toko.
+     */
+    public function snapshots()
+    {
+        $baseDir = 'product-snapshots';
+        $dates   = collect(Storage::disk('local')->directories($baseDir))
+            ->map(fn ($path) => basename($path))
+            ->filter(fn ($date) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $date))
+            ->sortDesc()
+            ->values();
+
+        $snapshots = $dates->map(function ($date) use ($baseDir) {
+            $files = collect(Storage::disk('local')->files("{$baseDir}/{$date}"))
+                ->map(fn ($path) => basename($path))
+                ->sort()
+                ->values();
+
+            return ['date' => $date, 'files' => $files];
+        });
+
+        return view('products.snapshots', compact('snapshots'));
+    }
+
+    /**
+     * Download satu file snapshot. $date & $file divalidasi ketat (whitelist regex)
+     * sebelum dipakai sebagai path, supaya tidak bisa dipakai untuk path traversal.
+     */
+    public function downloadSnapshot(string $date, string $file)
+    {
+        abort_unless(preg_match('/^\d{4}-\d{2}-\d{2}$/', $date), 404);
+        abort_unless(preg_match('/^[A-Za-z0-9_\-]+\.xlsx$/', $file), 404);
+
+        $path = "product-snapshots/{$date}/{$file}";
+        abort_unless(Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->download($path);
     }
 
     /**

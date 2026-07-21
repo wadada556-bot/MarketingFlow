@@ -14,6 +14,10 @@ Route::get('/products/price-history', [ProductController::class, 'priceHistory']
     ->name('products.price-history');
 Route::get('/products/export', [ProductController::class, 'export'])
     ->name('products.export');
+Route::get('/products/snapshots', [ProductController::class, 'snapshots'])
+    ->name('products.snapshots');
+Route::get('/products/snapshots/{date}/{file}', [ProductController::class, 'downloadSnapshot'])
+    ->name('products.snapshots.download');
 Route::post('/products/hpp', [ProductController::class, 'updateHpp'])
     ->name('products.update-hpp');
 Route::post('/products/price', [ProductController::class, 'updatePrice'])

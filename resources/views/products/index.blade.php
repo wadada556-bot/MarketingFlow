@@ -891,6 +891,13 @@
                    title="Export semua data toko ini ke Excel">
                     <i class="bi bi-download"></i>
                 </a>
+
+                {{-- Arsip snapshot Excel harian otomatis (7 hari terakhir) --}}
+                <a href="{{ route('products.snapshots') }}"
+                   class="products-export-btn"
+                   title="Arsip snapshot Excel harian (7 hari terakhir)">
+                    <i class="bi bi-archive"></i>
+                </a>
             </div>
         </div>
 
