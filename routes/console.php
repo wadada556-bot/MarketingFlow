@@ -10,6 +10,10 @@ Artisan::command('inspire', function () {
 // ── Jadwal otomatis ────────────────────────────────────────────────────────
 use Illuminate\Support\Facades\Schedule;
 
+// CATATAN (2026-10-06): di server ini job TIDAK dipicu lewat schedule:run lagi. Task Scheduler Windows
+// memanggil command langsung (MarketingFlow-JubelioSync 23:58, MarketingFlow-SnapshotExport 00:05)
+// via scheduler-hidden.vbs, output -> storage/logs/scheduler.log. Entri di bawah = dokumentasi jadwal.
+
 // Stok + HPP (deteksi perubahan + email) + PO Jubelio (full katalog) -> tabel products.
 // Satu sync menutup data harian sedekat mungkin dengan pergantian hari.
 Schedule::command('jubelio:sync-inventory')->dailyAt('23:58')->timezone('Asia/Jakarta')->withoutOverlapping();
