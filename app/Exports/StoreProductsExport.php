@@ -61,7 +61,7 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
             ->orderBy('ts.tiktok_sku_id')
             ->get([
                 'tl.tiktok_product_id as product_id', 'ts.tiktok_sku_id as sku_id',
-                'pr.sku_code', 'pr.variation_label', 'ts.model_id',
+                'pr.sku_code', 'pr.variation_label', 'pr.model_id',
                 'pr.stok', 'pr.po_qty', 'pr.hpp', 'p.retail_price', 'p.promotion_price',
             ]);
 

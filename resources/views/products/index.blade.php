@@ -63,7 +63,7 @@
                 </td>
                 <td style="font-size:12.5px;color:var(--md-on-surface-variant)">${dash(v.sku_id)}</td>
                 <td style="font-size:13px">
-                    <span class="products-field js-model-edit" data-sku="${encodeURIComponent(v.sku)}" data-product-id="${v.product_id ?? ''}" data-model="${esc(v.model)}" data-default="${esc(v.model_default)}" title="Isi / ubah ID Model variasi ini (kosongkan untuk pakai bawaan)">
+                    <span class="products-field js-model-edit" data-sku="${encodeURIComponent(v.sku)}" data-product-id="${v.product_id ?? ''}" data-model="${esc(v.model)}" data-default="${esc(v.model_default)}" title="Isi / ubah ID Model SKU ini (berlaku di semua toko; kosongkan untuk pakai bawaan)">
                         <span class="js-model-val">${esc(v.model ?? v.model_default ?? '-')}</span>
                         ${v.model ? '<i class="bi bi-pin-angle-fill js-model-pin" title="Diisi manual" style="font-size:11px;color:var(--md-primary)"></i>' : ''}
                         <i class="bi bi-pencil"></i>
@@ -388,7 +388,7 @@
         modelTarget = btn;
         const isBulk = !btn.dataset.sku;
         modelLabel.textContent = isBulk
-            ? 'Semua variasi pada Product ID ' + btn.dataset.productId
+            ? 'Semua SKU pada Product ID ' + btn.dataset.productId
             : decodeURIComponent(btn.dataset.sku);
         modelDefault.textContent = isBulk ? 'turunan SKU masing-masing variasi' : (btn.dataset.default || '-');
         modelInput.value = btn.dataset.model || '';
@@ -408,27 +408,28 @@
         })
         .then(r => r.ok ? r.json() : Promise.reject(r))
         .then(d => {
-            const productId = btn.dataset.productId;
-            const row = document.querySelector(`.js-catalog-row[data-product-id="${CSS.escape(productId)}"]`);
-            if (row) {
-                // Patch label gabungan di baris listing.
+            // Tambal semua listing terdampak di halaman (SKU yang sama bisa muncul
+            // di >1 listing pada toko ini; toko lain terbarui saat dibuka).
+            Object.entries(d.listings || {}).forEach(([pid, info]) => {
+                const row = document.querySelector(`.js-catalog-row[data-product-id="${CSS.escape(pid)}"]`);
+                if (!row) return;
                 const val = row.querySelector('.js-model-val');
-                val.textContent = d.model_label || '-';
+                val.textContent = info.label || '-';
                 const pin = row.querySelector('.js-model-pin');
-                if (d.model_manual && !pin) {
+                if (info.manual && !pin) {
                     val.insertAdjacentHTML('afterend',
                         '<i class="bi bi-pin-angle-fill js-model-pin" title="Ada yang diisi manual" style="font-size:11px;color:var(--md-primary)"></i>');
-                } else if (!d.model_manual && pin) {
+                } else if (!info.manual && pin) {
                     pin.remove();
                 }
-                // Detail varian sudah ter-load → reload agar nilai tiap variasi akurat.
+                // Detail varian sudah ter-load -> reload agar nilai tiap variasi akurat.
                 const subrow    = row.nextElementSibling;
                 const detailRow = subrow ? subrow.nextElementSibling : null;
                 if (detailRow && detailRow.classList.contains('js-detail-row')) {
                     const td = detailRow.querySelector('td');
-                    if (td) loadVariantsDetail(productId, row, td).catch(() => {});
+                    if (td) loadVariantsDetail(pid, row, td).catch(() => {});
                 }
-            }
+            });
             closeModel();
         })
         .catch(() => { alert('Gagal menyimpan ID Model. Coba lagi.'); })
@@ -1131,6 +1132,7 @@
                        style="border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
                 <p class="mb-0 mt-2" style="font-size:11.5px;color:var(--md-on-surface-variant)">
                     Bawaan: <strong id="model-default-hint"></strong>. Kosongkan lalu simpan untuk kembali ke bawaan.
+                    <br><strong>Berlaku di semua toko</strong> yang menjual SKU ini.
                 </p>
 
                 <div class="d-flex justify-content-end gap-2 mt-4">

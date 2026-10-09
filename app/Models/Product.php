@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Product extends Model
 {
     protected $fillable = [
-        'sku_code', 'parent_sku', 'variation_label', 'stok', 'hpp', 'po_qty', 'synced_at',
+        'sku_code', 'parent_sku', 'variation_label', 'model_id', 'stok', 'hpp', 'po_qty', 'synced_at',
     ];
 
     protected $casts = [
