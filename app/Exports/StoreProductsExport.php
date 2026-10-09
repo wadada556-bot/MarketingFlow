@@ -73,6 +73,8 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
             (string) $r->product_id,
             (string) $r->sku_id,
             (string) $labels[$r->product_id],
+            // ID Model per variasi: manual bila diisi, kalau tidak turunan sku_code.
+            filled($r->model_id) ? (string) $r->model_id : ProductController::variantKey($r->sku_code)[0],
             (string) $r->sku_code,
             (string) ($r->variation_label ?? ''),
             (int) $r->hpp,
@@ -80,16 +82,14 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
             $r->promotion_price !== null ? (int) $r->promotion_price : null,
             (int) $r->stok,
             (int) $r->po_qty,
-            // ID Model per variasi: manual bila diisi, kalau tidak turunan sku_code.
-            filled($r->model_id) ? (string) $r->model_id : ProductController::variantKey($r->sku_code)[0],
         ]);
     }
 
     public function headings(): array
     {
         return [
-            'Product ID', 'SKU ID', 'Parent SKU', 'Seller SKU', 'Variasi',
-            'HPP', 'Harga Normal', 'Harga Promo', 'Stok', 'PO', 'ID Model',
+            'Product ID', 'SKU ID', 'Parent SKU', 'ID Model', 'Seller SKU', 'Variasi',
+            'HPP', 'Harga Normal', 'Harga Promo', 'Stok', 'PO',
         ];
     }
 
@@ -98,9 +98,9 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
         return [
             'A' => NumberFormat::FORMAT_TEXT,        // Product ID (bigint) → text
             'B' => NumberFormat::FORMAT_TEXT,        // SKU ID (bigint)     → text
-            'F' => '"Rp"#,##0',                       // HPP
-            'G' => '"Rp"#,##0',                       // Harga Normal
-            'H' => '"Rp"#,##0',                       // Harga Promo
+            'G' => '"Rp"#,##0',                       // HPP
+            'H' => '"Rp"#,##0',                       // Harga Normal
+            'I' => '"Rp"#,##0',                       // Harga Promo
         ];
     }
 
