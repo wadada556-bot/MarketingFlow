@@ -61,7 +61,7 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
             ->orderBy('ts.tiktok_sku_id')
             ->get([
                 'tl.tiktok_product_id as product_id', 'ts.tiktok_sku_id as sku_id',
-                'pr.sku_code', 'pr.variation_label',
+                'pr.sku_code', 'pr.variation_label', 'ts.model_id',
                 'pr.stok', 'pr.po_qty', 'pr.hpp', 'p.retail_price', 'p.promotion_price',
             ]);
 
@@ -80,6 +80,8 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
             $r->promotion_price !== null ? (int) $r->promotion_price : null,
             (int) $r->stok,
             (int) $r->po_qty,
+            // ID Model per variasi: manual bila diisi, kalau tidak turunan sku_code.
+            filled($r->model_id) ? (string) $r->model_id : ProductController::variantKey($r->sku_code)[0],
         ]);
     }
 
@@ -87,7 +89,7 @@ class StoreProductsExport extends DefaultValueBinder implements FromCollection, 
     {
         return [
             'Product ID', 'SKU ID', 'Parent SKU', 'Seller SKU', 'Variasi',
-            'HPP', 'Harga Normal', 'Harga Promo', 'Stok', 'PO',
+            'HPP', 'Harga Normal', 'Harga Promo', 'Stok', 'PO', 'ID Model',
         ];
     }
 
