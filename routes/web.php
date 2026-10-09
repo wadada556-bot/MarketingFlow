@@ -23,7 +23,9 @@ Route::get('/products/snapshots/{date}/{file}', [ProductController::class, 'down
     ->name('products.snapshots.download');
 Route::post('/products/hpp', [ProductController::class, 'updateHpp'])
     ->name('products.update-hpp');
-Route::post('/products/price', [ProductController::class, 'updatePrice'])
+Route::post('/products/model-id', [ProductController::class, 'updateModelId'])
+    ->name('products.update-model-id');
+Route::post('/products/price',[ProductController::class, 'updatePrice'])
     ->name('products.update-price');
 Route::post('/products/price/bulk', [ProductController::class, 'bulkUpdatePrice'])
     ->name('products.bulk-update-price');

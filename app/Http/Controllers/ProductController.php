@@ -39,6 +39,7 @@ class ProductController extends Controller
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($outer) use ($search) {
                     $outer->where('tl.tiktok_product_id', 'like', "%{$search}%")
+                        ->orWhere('tl.model_id', 'like', "%{$search}%")
                         ->orWhereExists(function ($sub) use ($search) {
                             $sub->from('tiktok_listing_skus as ts2')
                                 ->join('products as pr2', 'pr2.id', '=', 'ts2.product_id')
@@ -69,6 +70,7 @@ class ProductController extends Controller
                     : 'COUNT(*) as variant_count'),
                 DB::raw('SUM(pr.stok) as total_stok'),
                 DB::raw('SUM(pr.po_qty) as total_po'),
+                DB::raw('MAX(tl.model_id) as model_id'),
             )
             ->groupBy('tl.tiktok_product_id')
             ->orderByRaw('SUM(pr.stok) DESC')
@@ -113,6 +115,8 @@ class ProductController extends Controller
                     return (object) [
                         'induk'          => implode(' + ', array_map(fn ($x) => $x[0], array_values($perBase))),
                         'primary_parent' => array_key_first($perBase),
+                        // ID Model bawaan (turunan sku_code) — dipakai bila model_id manual kosong.
+                        'model_default'  => implode(' + ', array_keys($perBase)),
                         'retail_min'     => $retail->min(),
                         'retail_max'     => $retail->max(),
                         'promo_min'      => $promo->min(),
@@ -377,6 +381,37 @@ class ProductController extends Controller
             'ok'       => true,
             'sku_code' => $data['sku_code'],
             'hpp'      => (int) $data['hpp'],
+        ]);
+    }
+
+    /**
+     * Isi/ubah ID Model satu LISTING (product_id TikTok) pada toko terpilih.
+     * Kosong = hapus override (kembali ke nilai turunan dari sku_code).
+     */
+    public function updateModelId(Request $request)
+    {
+        $data = $request->validate([
+            'store_id'   => ['required', 'integer', 'exists:stores,id'],
+            'product_id' => ['required', 'string'],
+            'model_id'   => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $modelId = trim((string) ($data['model_id'] ?? ''));
+
+        $updated = DB::table('tiktok_listings')
+            ->where('store_id', $data['store_id'])
+            ->where('tiktok_product_id', $data['product_id'])
+            ->update(['model_id' => $modelId !== '' ? $modelId : null, 'updated_at' => now()]);
+
+        abort_if(! $updated && ! DB::table('tiktok_listings')
+            ->where('store_id', $data['store_id'])
+            ->where('tiktok_product_id', $data['product_id'])
+            ->exists(), 404, 'Listing tidak ditemukan.');
+
+        return response()->json([
+            'ok'         => true,
+            'product_id' => $data['product_id'],
+            'model_id'   => $modelId !== '' ? $modelId : null,
         ]);
     }
 

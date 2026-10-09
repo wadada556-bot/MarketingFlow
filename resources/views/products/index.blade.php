@@ -15,6 +15,7 @@
     const VARIANTS_URL      = @json(route('products.variants'));
     const PRICE_HISTORY_URL = @json(route('products.price-history'));
     const UPDATE_HPP_URL    = @json(route('products.update-hpp'));
+    const UPDATE_MODEL_URL  = @json(route('products.update-model-id'));
     const UPDATE_PRICE_URL  = @json(route('products.update-price'));
     const BULK_PRICE_URL    = @json(route('products.bulk-update-price'));
     const BULK_SEARCH_URL   = @json(route('products.bulk-price-search'));
@@ -119,7 +120,7 @@
     function computeDetailCols(catalogRow, tdEl) {
         const cells = catalogRow ? catalogRow.children : [];
         const rect  = (i) => cells[i] ? cells[i].getBoundingClientRect() : null;
-        const rStok = rect(1), rPo = rect(2), rHpp = rect(3), rHarga = rect(4);
+        const rStok = rect(2), rPo = rect(3), rHpp = rect(4), rHarga = rect(5);
         const stok  = rStok  ? Math.round(rStok.width)  : 110;
         const po    = rPo    ? Math.round(rPo.width)    : 100;
         const hpp   = rHpp   ? Math.round(rHpp.width)   : 170;
@@ -200,9 +201,9 @@
         const tr = document.createElement('tr');
         tr.className = 'js-detail-row';
         const td = document.createElement('td');
-        td.colSpan = 5;
+        td.colSpan = 6;
         td.style.background = 'var(--md-surface-container-low)';
-        // (kolom header: Produk, Total Stok, Total PO, HPP, Harga Jual)
+        // (kolom header: Produk, ID Model, Total Stok, Total PO, HPP, Harga Jual)
         td.innerHTML = '<div style="padding:16px 44px;color:var(--md-on-surface-variant);font-size:13px">Memuat varian…</div>';
         tr.appendChild(td);
         subrow.after(tr);
@@ -216,7 +217,7 @@
     // di DOM — dipakai saat expand baris PERTAMA KALI, dan juga untuk me-refresh
     // detail setelah edit harga tanpa reload halaman penuh.
     function loadVariantsDetail(productId, catalogRow, td) {
-        // Ukur geometri SETELAH td disisipkan (colspan=5 langsung dpt lebar
+        // Ukur geometri SETELAH td disisipkan (colspan=6 langsung dpt lebar
         // baris penuh terlepas dari isinya), tapi SEBELUM konten varian
         // memenuhinya, supaya catalogRow jg belum sempat bergeser.
         const cols = computeDetailCols(catalogRow, td);
@@ -237,7 +238,7 @@
     // versi sebelumnya (lihat commit 85449e8, direvisi di sini).
     function alignDetailTableRight(catalogRow, tdEl) {
         const table = tdEl.querySelector('table');
-        const targetRight = catalogRow.children[4].getBoundingClientRect().right; // kolom Harga Jual
+        const targetRight = catalogRow.children[5].getBoundingClientRect().right; // kolom Harga Jual
         const diff = targetRight - table.getBoundingClientRect().right;
         if (Math.abs(diff) > 0.5 && Math.abs(diff) <= 40) {
             const currentML = parseFloat(getComputedStyle(table).marginLeft) || 0;
@@ -355,6 +356,57 @@
         })
         .catch(() => { alert('Gagal menyimpan HPP. Coba lagi.'); })
         .finally(() => { hppSave.disabled = false; });
+    });
+
+    // ── Isi / ubah ID Model (modal, per listing) ─────────────────────────────
+    const modelOverlay = document.getElementById('model-modal');
+    const modelForm    = document.getElementById('model-form');
+    const modelInput   = document.getElementById('model-input');
+    const modelLabel   = document.getElementById('model-context-label');
+    const modelDefault = document.getElementById('model-default-hint');
+    const modelSave    = document.getElementById('model-save');
+    let   modelTarget  = null;
+
+    function closeModel() { modelOverlay.style.display = 'none'; modelTarget = null; }
+    modelOverlay.addEventListener('click', (e) => { if (e.target === modelOverlay || e.target.closest('.js-model-cancel')) closeModel(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modelOverlay.style.display === 'flex') closeModel(); });
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.js-model-edit');
+        if (!btn) return;
+        modelTarget = btn;
+        modelLabel.textContent = btn.dataset.productId;
+        modelDefault.textContent = btn.dataset.default || '-';
+        modelInput.value = btn.dataset.model || '';
+        modelOverlay.style.display = 'flex';
+        setTimeout(() => modelInput.focus(), 40);
+    });
+
+    modelForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!modelTarget) return;
+        const btn = modelTarget;
+        modelSave.disabled = true;
+        fetch(UPDATE_MODEL_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            body: JSON.stringify({ store_id: STORE_ID, product_id: btn.dataset.productId, model_id: modelInput.value.trim() }),
+        })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(d => {
+            btn.dataset.model = d.model_id || '';
+            btn.querySelector('.js-model-val').textContent = d.model_id || btn.dataset.default || '-';
+            const pin = btn.querySelector('.js-model-pin');
+            if (d.model_id && !pin) {
+                btn.querySelector('.js-model-val').insertAdjacentHTML('afterend',
+                    '<i class="bi bi-pin-angle-fill js-model-pin" title="Diisi manual" style="font-size:11px;color:var(--md-primary)"></i>');
+            } else if (!d.model_id && pin) {
+                pin.remove();
+            }
+            closeModel();
+        })
+        .catch(() => { alert('Gagal menyimpan ID Model. Coba lagi.'); })
+        .finally(() => { modelSave.disabled = false; });
     });
 
     // ── Ubah harga promo (satu SKU atau bulk per product_id) ────────────────
@@ -912,7 +964,7 @@
             </span>
             <input type="text" name="search" value="{{ $search ?? '' }}"
                    class="form-control"
-                   placeholder="Cari SKU induk…"
+                   placeholder="Cari SKU induk / ID Model…"
                    style="border-color:var(--md-outline);border-left:0;border-right:{{ !empty($search) ? '0' : '' }};font-size:13.5px;background:transparent;color:var(--md-on-surface)">
             @if(!empty($search))
                 <a href="{{ route('products.index', array_filter(['store_id' => $storeId, 'hpp_empty' => $hppEmpty ? 1 : null])) }}"
@@ -1021,6 +1073,46 @@
                         Batal
                     </button>
                     <button type="submit" id="hpp-save"
+                            style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 20px">
+                        Simpan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Modal isi/ubah ID Model (dibuka dari ikon pensil pada kolom ID Model) --}}
+    <div id="model-modal"
+         style="display:none;position:fixed;inset:0;z-index:1060;background:rgba(0,0,0,.45);
+                align-items:center;justify-content:center;padding:16px">
+        <div style="background:var(--md-surface);color:var(--md-on-surface);border-radius:var(--md-shape-md,12px);
+                    width:100%;max-width:420px;box-shadow:var(--md-elevation-3,0 8px 24px rgba(0,0,0,.2))">
+            <div class="d-flex align-items-center justify-content-between"
+                 style="padding:16px 20px;border-bottom:1px solid var(--md-outline-variant,var(--md-outline))">
+                <h2 style="font-size:15px;font-weight:600;margin:0">Isi / Ubah ID Model</h2>
+                <button type="button" class="btn btn-sm js-model-cancel" title="Tutup"
+                        style="background:transparent;border:none;color:var(--md-on-surface-variant);padding:2px 6px">
+                    <i class="bi bi-x-lg" style="font-size:15px"></i>
+                </button>
+            </div>
+            <form id="model-form" style="padding:20px">
+                <p class="mb-1" style="font-size:12.5px;color:var(--md-on-surface-variant)">Product ID</p>
+                <p id="model-context-label" class="mb-3 fw-medium" style="font-size:14px;color:var(--md-on-surface);word-break:break-all"></p>
+
+                <label for="model-input" class="mb-1 d-block" style="font-size:12.5px;color:var(--md-on-surface-variant)">ID Model</label>
+                <input type="text" id="model-input" maxlength="100" autocomplete="off"
+                       class="form-control" placeholder="Kosongkan untuk pakai bawaan"
+                       style="border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
+                <p class="mb-0 mt-2" style="font-size:11.5px;color:var(--md-on-surface-variant)">
+                    Bawaan (dari SKU): <strong id="model-default-hint"></strong>. Kosongkan lalu simpan untuk kembali ke bawaan.
+                </p>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button type="button" class="btn js-model-cancel"
+                            style="background:transparent;border:1px solid var(--md-outline);color:var(--md-on-surface);border-radius:var(--md-shape-xs);font-size:13.5px;padding:8px 16px">
+                        Batal
+                    </button>
+                    <button type="submit" id="model-save"
                             style="background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--md-shape-xs);font-size:13.5px;font-weight:500;padding:8px 20px">
                         Simpan
                     </button>
