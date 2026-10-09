@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TiktokListingSku extends Model
 {
-    protected $fillable = ['listing_id', 'product_id', 'tiktok_sku_id'];
+    protected $fillable = ['listing_id', 'product_id', 'tiktok_sku_id', 'model_id'];
 
     protected $casts = [
         'listing_id'    => 'integer',

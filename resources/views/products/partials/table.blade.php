@@ -57,12 +57,12 @@
                         </div>
                     </td>
                     <td>
-                        @php $modelShown = $row->model_id ?: ($m->model_default ?? null); @endphp
-                        <span class="products-field js-model-edit" data-product-id="{{ $row->product_id }}"
-                              data-model="{{ $row->model_id }}" data-default="{{ $m->model_default ?? '' }}"
-                              title="Isi / ubah ID Model (kosongkan untuk pakai bawaan)">
-                            <span class="js-model-val" style="font-size:13.5px;color:var(--md-on-surface)">{{ $modelShown ?: '-' }}</span>
-                            @if($row->model_id)<i class="bi bi-pin-angle-fill js-model-pin" title="Diisi manual" style="font-size:11px;color:var(--md-primary)"></i>@endif
+                        {{-- Gabungan ID Model semua variasi listing; edit massal via pensil, per variasi di tabel varian --}}
+                        <span class="products-field js-model-edit" data-product-id="{{ $row->product_id }}" data-sku=""
+                              data-model="" data-default=""
+                              title="Isi ID Model untuk SEMUA variasi listing ini (per variasi: buka detail)">
+                            <span class="js-model-val" style="font-size:13.5px;color:var(--md-on-surface)">{{ $m->model_label ?? '-' }}</span>
+                            @if($m->model_manual ?? false)<i class="bi bi-pin-angle-fill js-model-pin" title="Ada yang diisi manual" style="font-size:11px;color:var(--md-primary)"></i>@endif
                             <i class="bi bi-pencil"></i>
                         </span>
                     </td>

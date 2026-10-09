@@ -39,13 +39,13 @@ class ProductController extends Controller
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($outer) use ($search) {
                     $outer->where('tl.tiktok_product_id', 'like', "%{$search}%")
-                        ->orWhere('tl.model_id', 'like', "%{$search}%")
                         ->orWhereExists(function ($sub) use ($search) {
                             $sub->from('tiktok_listing_skus as ts2')
                                 ->join('products as pr2', 'pr2.id', '=', 'ts2.product_id')
                                 ->whereColumn('ts2.listing_id', 'tl.id')
                                 ->where(function ($w) use ($search) {
-                                    $w->where('pr2.parent_sku', 'like', "%{$search}%")
+                                    $w->where('ts2.model_id', 'like', "%{$search}%")
+                                        ->orWhere('pr2.parent_sku', 'like', "%{$search}%")
                                         ->orWhere('pr2.sku_code', 'like', "%{$search}%");
                                 });
                         });
@@ -70,7 +70,6 @@ class ProductController extends Controller
                     : 'COUNT(*) as variant_count'),
                 DB::raw('SUM(pr.stok) as total_stok'),
                 DB::raw('SUM(pr.po_qty) as total_po'),
-                DB::raw('MAX(tl.model_id) as model_id'),
             )
             ->groupBy('tl.tiktok_product_id')
             ->orderByRaw('SUM(pr.stok) DESC')
@@ -96,7 +95,7 @@ class ProductController extends Controller
                     ->whereIn('tl.tiktok_product_id', $pids)
                     ->orderBy('ts.tiktok_sku_id')
                     ->get([
-                        'tl.tiktok_product_id as product_id', 'pr.sku_code',
+                        'tl.tiktok_product_id as product_id', 'pr.sku_code', 'ts.model_id',
                         'p.retail_price', 'pr.hpp', 'p.promotion_price',
                     ]);
 
@@ -115,8 +114,8 @@ class ProductController extends Controller
                     return (object) [
                         'induk'          => implode(' + ', array_map(fn ($x) => $x[0], array_values($perBase))),
                         'primary_parent' => array_key_first($perBase),
-                        // ID Model bawaan (turunan sku_code) — dipakai bila model_id manual kosong.
-                        'model_default'  => implode(' + ', array_keys($perBase)),
+                        'model_label'    => self::modelLabel($rows),
+                        'model_manual'   => $rows->contains(fn ($r) => filled($r->model_id)),
                         'retail_min'     => $retail->min(),
                         'retail_max'     => $retail->max(),
                         'promo_min'      => $promo->min(),
@@ -197,7 +196,7 @@ class ProductController extends Controller
             ->when($hppEmpty, fn ($q) => $q->where('pr.hpp', '=', 0))
             ->orderBy('ts.tiktok_sku_id')
             ->get([
-                'pr.sku_code', 'pr.variation_label', 'pr.stok', 'pr.po_qty', 'pr.hpp',
+                'pr.sku_code', 'pr.variation_label', 'pr.stok', 'pr.po_qty', 'pr.hpp', 'ts.model_id',
                 'p.retail_price', 'tl.tiktok_product_id as product_id',
                 'ts.tiktok_sku_id as sku_id', 'p.promotion_price',
             ]);
@@ -209,6 +208,8 @@ class ProductController extends Controller
                 'product_id'  => $r->product_id !== null ? (string) $r->product_id : null,
                 'sku_id'      => $r->sku_id !== null ? (string) $r->sku_id : null,
                 'sku'         => $r->sku_code,
+                'model'       => $r->model_id,
+                'model_default' => self::variantKey($r->sku_code)[0],
                 'label'       => $r->variation_label,
                 'stok'        => (int) $r->stok,
                 'po'          => (int) $r->po_qty,
@@ -385,33 +386,50 @@ class ProductController extends Controller
     }
 
     /**
-     * Isi/ubah ID Model satu LISTING (product_id TikTok) pada toko terpilih.
-     * Kosong = hapus override (kembali ke nilai turunan dari sku_code).
+     * Isi/ubah ID Model pada level VARIASI (tiktok_listing_skus). Bila `sku_code`
+     * diisi → hanya variasi itu; bila kosong → SEMUA variasi pada listing
+     * (product_id TikTok) di toko terpilih. Kosong = hapus override (kembali ke
+     * nilai turunan dari sku_code). Respons memuat label gabungan listing terbaru.
      */
     public function updateModelId(Request $request)
     {
         $data = $request->validate([
             'store_id'   => ['required', 'integer', 'exists:stores,id'],
             'product_id' => ['required', 'string'],
+            'sku_code'   => ['nullable', 'string'],
             'model_id'   => ['nullable', 'string', 'max:100'],
         ]);
 
         $modelId = trim((string) ($data['model_id'] ?? ''));
+        $skuCode = trim((string) ($data['sku_code'] ?? ''));
 
-        $updated = DB::table('tiktok_listings')
+        $listingId = DB::table('tiktok_listings')
             ->where('store_id', $data['store_id'])
             ->where('tiktok_product_id', $data['product_id'])
-            ->update(['model_id' => $modelId !== '' ? $modelId : null, 'updated_at' => now()]);
+            ->value('id');
+        abort_if(! $listingId, 404, 'Listing tidak ditemukan.');
 
-        abort_if(! $updated && ! DB::table('tiktok_listings')
-            ->where('store_id', $data['store_id'])
-            ->where('tiktok_product_id', $data['product_id'])
-            ->exists(), 404, 'Listing tidak ditemukan.');
+        $q = DB::table('tiktok_listing_skus')->where('listing_id', $listingId);
+        if ($skuCode !== '') {
+            $productId = DB::table('products')->where('sku_code', $skuCode)->value('id');
+            abort_if(! $productId, 404, 'SKU tidak ditemukan.');
+            $q->where('product_id', $productId);
+        }
+        $q->update(['model_id' => $modelId !== '' ? $modelId : null, 'updated_at' => now()]);
+
+        $rows = DB::table('tiktok_listing_skus as ts')
+            ->join('products as pr', 'pr.id', '=', 'ts.product_id')
+            ->where('ts.listing_id', $listingId)
+            ->orderBy('ts.tiktok_sku_id')
+            ->get(['pr.sku_code', 'ts.model_id']);
 
         return response()->json([
-            'ok'         => true,
-            'product_id' => $data['product_id'],
-            'model_id'   => $modelId !== '' ? $modelId : null,
+            'ok'           => true,
+            'product_id'   => $data['product_id'],
+            'sku_code'     => $skuCode !== '' ? $skuCode : null,
+            'model_id'     => $modelId !== '' ? $modelId : null,
+            'model_label'  => self::modelLabel($rows),
+            'model_manual' => $rows->contains(fn ($r) => filled($r->model_id)),
         ]);
     }
 
@@ -780,6 +798,24 @@ class ProductController extends Controller
         $pos = strrpos($sku, '-');
 
         return [strtoupper($pos !== false ? substr($sku, 0, $pos) : $sku), PHP_INT_MAX];
+    }
+
+    /**
+     * Label ID Model satu listing: nilai unik per variasi (manual bila ada, kalau
+     * tidak turunan sku_code), digabung " + " urut kemunculan. Mis. bundling →
+     * "BM-LCAZD + BM-AKS32".
+     *
+     * @param  iterable<object{sku_code: string, model_id: ?string}>  $rows
+     */
+    public static function modelLabel(iterable $rows): string
+    {
+        $seen = [];
+        foreach ($rows as $r) {
+            $m = filled($r->model_id) ? $r->model_id : self::variantKey($r->sku_code)[0];
+            $seen[$m] = true;
+        }
+
+        return implode(' + ', array_keys($seen));
     }
 
     /**

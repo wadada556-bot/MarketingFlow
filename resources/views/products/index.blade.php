@@ -39,6 +39,9 @@
         ? 'Rp' + num(h)
         : '<span style="color:var(--md-on-surface-variant)">-</span>';
 
+    // Escape teks bebas (ID Model diketik user) sebelum masuk template HTML.
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
     function buildDetail(d, cols) {
         const variants = d.variants || [];
         if (!variants.length) {
@@ -50,8 +53,8 @@
         // tak punya sisa/kekurangan ruang utk didistribusikan ulang (itu yg
         // sebelumnya bikin kolom Stok/PO/HPP/Harga Jual melenceng dari baris induk
         // di lebar layar yg berbeda dari saat pertama kali diuji).
-        const w = cols || {varian:240, skuId:170, stok:110, po:100, hpp:170, harga:220, aksi:110};
-        const total = w.varian + w.skuId + w.stok + w.po + w.hpp + w.harga + w.aksi;
+        const w = cols || {varian:240, skuId:170, model:170, stok:110, po:100, hpp:170, harga:220, aksi:110};
+        const total = w.varian + w.skuId + w.model + w.stok + w.po + w.hpp + w.harga + w.aksi;
         const rows = variants.map(v => `
             <tr>
                 <td style="font-size:13px">
@@ -59,6 +62,13 @@
                     <p class="mb-0" style="font-size:11.5px;color:var(--md-on-surface-variant)">${v.sku}</p>
                 </td>
                 <td style="font-size:12.5px;color:var(--md-on-surface-variant)">${dash(v.sku_id)}</td>
+                <td style="font-size:13px">
+                    <span class="products-field js-model-edit" data-sku="${encodeURIComponent(v.sku)}" data-product-id="${v.product_id ?? ''}" data-model="${esc(v.model)}" data-default="${esc(v.model_default)}" title="Isi / ubah ID Model variasi ini (kosongkan untuk pakai bawaan)">
+                        <span class="js-model-val">${esc(v.model ?? v.model_default ?? '-')}</span>
+                        ${v.model ? '<i class="bi bi-pin-angle-fill js-model-pin" title="Diisi manual" style="font-size:11px;color:var(--md-primary)"></i>' : ''}
+                        <i class="bi bi-pencil"></i>
+                    </span>
+                </td>
                 <td class="text-end" style="font-size:13px">${num(v.stok)}</td>
                 <td class="text-end" style="font-size:13px">${num(v.po)}</td>
                 <td class="text-end" style="font-size:13px;white-space:nowrap">
@@ -90,13 +100,13 @@
             <table class="table align-middle mb-0" style="table-layout:fixed;width:${total}px">
               <colgroup>
                 <col style="width:${w.varian}px">
-                <col style="width:${w.skuId}px">
+                <col style="width:${w.skuId}px"><col style="width:${w.model}px">
                 <col style="width:${w.stok}px"><col style="width:${w.po}px">
                 <col style="width:${w.hpp}px"><col style="width:${w.harga}px">
                 <col style="width:${w.aksi}px">
               </colgroup>
               <thead><tr style="color:var(--md-on-surface-variant);font-size:12px">
-                <th>Varian</th><th>SKU ID</th>
+                <th>Varian</th><th>SKU ID</th><th>ID Model</th>
                 <th class="text-end">Stok</th><th class="text-end">PO</th>
                 <th class="text-end">HPP</th><th class="text-end">Harga Jual</th>
                 <th class="text-center">Aksi</th>
@@ -107,7 +117,7 @@
 
     // Hitung lebar tiap kolom tabel detail dari geometri NYATA baris induk
     // (bukan CSS auto-layout, yg terbukti tak stabil lintas lebar layar).
-    // Stok/PO/HPP/Harga Jual = persis sama dgn kolom yg sama di baris induk.
+    // ID Model/Stok/PO/HPP/Harga Jual = persis sama dgn kolom yg sama di baris induk.
     // Leading (Varian+SKU ID) = SISA ruang persis dari ujung kiri (indentLeft,
     // tempat tabel detail mulai) sampai ujung kanan kolom Harga Jual baris
     // induk (target kanan) dikurangi Stok/PO/HPP/Harga/Aksi — jadi tabel
@@ -120,7 +130,8 @@
     function computeDetailCols(catalogRow, tdEl) {
         const cells = catalogRow ? catalogRow.children : [];
         const rect  = (i) => cells[i] ? cells[i].getBoundingClientRect() : null;
-        const rStok = rect(2), rPo = rect(3), rHpp = rect(4), rHarga = rect(5);
+        const rModel = rect(1), rStok = rect(2), rPo = rect(3), rHpp = rect(4), rHarga = rect(5);
+        const model = rModel ? Math.round(rModel.width) : 170;
         const stok  = rStok  ? Math.round(rStok.width)  : 110;
         const po    = rPo    ? Math.round(rPo.width)    : 100;
         const hpp   = rHpp   ? Math.round(rHpp.width)   : 170;
@@ -134,7 +145,7 @@
         const indentLeft = tdRect.left + tdPadL + 44 /* wrapper padding-left */;
 
         const targetRight = rHarga ? rHarga.right : (indentLeft + 1200);
-        const fixedSum = stok + po + hpp + harga + aksi;
+        const fixedSum = model + stok + po + hpp + harga + aksi;
         let leading = Math.round(targetRight - indentLeft - fixedSum);
         leading = Math.max(80, leading);
 
@@ -145,7 +156,7 @@
             varian = 40;
             skuId = Math.max(30, leading - varian);
         }
-        return {varian, skuId, stok, po, hpp, harga, aksi};
+        return {varian, skuId, model, stok, po, hpp, harga, aksi};
     }
 
     // ── Salin SKU induk / Product ID ─────────────────────────────────────────
@@ -375,8 +386,11 @@
         const btn = e.target.closest('.js-model-edit');
         if (!btn) return;
         modelTarget = btn;
-        modelLabel.textContent = btn.dataset.productId;
-        modelDefault.textContent = btn.dataset.default || '-';
+        const isBulk = !btn.dataset.sku;
+        modelLabel.textContent = isBulk
+            ? 'Semua variasi pada Product ID ' + btn.dataset.productId
+            : decodeURIComponent(btn.dataset.sku);
+        modelDefault.textContent = isBulk ? 'turunan SKU masing-masing variasi' : (btn.dataset.default || '-');
         modelInput.value = btn.dataset.model || '';
         modelOverlay.style.display = 'flex';
         setTimeout(() => modelInput.focus(), 40);
@@ -390,18 +404,30 @@
         fetch(UPDATE_MODEL_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-            body: JSON.stringify({ store_id: STORE_ID, product_id: btn.dataset.productId, model_id: modelInput.value.trim() }),
+            body: JSON.stringify({ store_id: STORE_ID, product_id: btn.dataset.productId, sku_code: btn.dataset.sku ? decodeURIComponent(btn.dataset.sku) : null, model_id: modelInput.value.trim() }),
         })
         .then(r => r.ok ? r.json() : Promise.reject(r))
         .then(d => {
-            btn.dataset.model = d.model_id || '';
-            btn.querySelector('.js-model-val').textContent = d.model_id || btn.dataset.default || '-';
-            const pin = btn.querySelector('.js-model-pin');
-            if (d.model_id && !pin) {
-                btn.querySelector('.js-model-val').insertAdjacentHTML('afterend',
-                    '<i class="bi bi-pin-angle-fill js-model-pin" title="Diisi manual" style="font-size:11px;color:var(--md-primary)"></i>');
-            } else if (!d.model_id && pin) {
-                pin.remove();
+            const productId = btn.dataset.productId;
+            const row = document.querySelector(`.js-catalog-row[data-product-id="${CSS.escape(productId)}"]`);
+            if (row) {
+                // Patch label gabungan di baris listing.
+                const val = row.querySelector('.js-model-val');
+                val.textContent = d.model_label || '-';
+                const pin = row.querySelector('.js-model-pin');
+                if (d.model_manual && !pin) {
+                    val.insertAdjacentHTML('afterend',
+                        '<i class="bi bi-pin-angle-fill js-model-pin" title="Ada yang diisi manual" style="font-size:11px;color:var(--md-primary)"></i>');
+                } else if (!d.model_manual && pin) {
+                    pin.remove();
+                }
+                // Detail varian sudah ter-load → reload agar nilai tiap variasi akurat.
+                const subrow    = row.nextElementSibling;
+                const detailRow = subrow ? subrow.nextElementSibling : null;
+                if (detailRow && detailRow.classList.contains('js-detail-row')) {
+                    const td = detailRow.querySelector('td');
+                    if (td) loadVariantsDetail(productId, row, td).catch(() => {});
+                }
             }
             closeModel();
         })
@@ -1096,7 +1122,7 @@
                 </button>
             </div>
             <form id="model-form" style="padding:20px">
-                <p class="mb-1" style="font-size:12.5px;color:var(--md-on-surface-variant)">Product ID</p>
+                <p class="mb-1" style="font-size:12.5px;color:var(--md-on-surface-variant)">Target</p>
                 <p id="model-context-label" class="mb-3 fw-medium" style="font-size:14px;color:var(--md-on-surface);word-break:break-all"></p>
 
                 <label for="model-input" class="mb-1 d-block" style="font-size:12.5px;color:var(--md-on-surface-variant)">ID Model</label>
@@ -1104,7 +1130,7 @@
                        class="form-control" placeholder="Kosongkan untuk pakai bawaan"
                        style="border-color:var(--md-outline);font-size:14px;background:var(--md-surface);color:var(--md-on-surface)">
                 <p class="mb-0 mt-2" style="font-size:11.5px;color:var(--md-on-surface-variant)">
-                    Bawaan (dari SKU): <strong id="model-default-hint"></strong>. Kosongkan lalu simpan untuk kembali ke bawaan.
+                    Bawaan: <strong id="model-default-hint"></strong>. Kosongkan lalu simpan untuk kembali ke bawaan.
                 </p>
 
                 <div class="d-flex justify-content-end gap-2 mt-4">

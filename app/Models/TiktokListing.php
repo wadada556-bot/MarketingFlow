@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TiktokListing extends Model
 {
-    protected $fillable = ['store_id', 'tiktok_product_id', 'model_id'];
+    protected $fillable = ['store_id', 'tiktok_product_id'];
 
     protected $casts = [
         'store_id'          => 'integer',
